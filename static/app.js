@@ -133,19 +133,56 @@ function renderChart(rows) {
 
 async function refresh() {
   try {
+    console.log("🔄 Refresh...");
+
     if (!state.device) {
+      console.log("📡 Fetching devices...");
+
       const d = await fetchDevices();
-      if (!d) { setConnStatus(false); renderLCD(null); return; }
+
+      console.log("📡 Devices:", d);
+
+      if (!d) {
+        setConnStatus(false);
+        renderLCD(null);
+        return;
+      }
     }
-    const res = await fetch(`/api/readings?device_id=${encodeURIComponent(state.device)}&limit=${state.limit}`);
-    if (!res.ok) throw new Error('bad response');
+
+    const url =
+      `/api/readings?device_id=${encodeURIComponent(state.device)}&limit=${state.limit}`;
+
+    console.log("📡 Request:", url);
+
+    const res = await fetch(url);
+
+    console.log("📡 HTTP:", res.status);
+    console.log("📡 URL:", res.url);
+
+    if (!res.ok) {
+      const text = await res.text();
+      console.error("❌ Server response:", text);
+      throw new Error(`HTTP ${res.status}`);
+    }
+
     const rows = await res.json();
+
+    console.log("✅ Readings:", rows);
+
     setConnStatus(true);
-    renderLCD(rows.length ? rows[rows.length - 1] : null);
+
+    renderLCD(
+      rows.length ? rows[rows.length - 1] : null
+    );
+
     renderTable(rows);
     renderStats(rows);
     renderChart(rows);
+
   } catch (e) {
+
+    console.error("❌ Dashboard error:", e);
+
     setConnStatus(false);
   }
 }
