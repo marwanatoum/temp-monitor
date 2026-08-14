@@ -169,7 +169,29 @@ async function refresh() {
 
     console.log("✅ Readings:", rows);
 
-    setConnStatus(true);
+    async function checkDeviceStatus() {
+    if (!state.device) return;
+
+    try {
+        const res = await fetch(
+            `/api/device-status/${encodeURIComponent(state.device)}`
+        );
+
+        if (!res.ok) {
+            throw new Error(`HTTP ${res.status}`);
+        }
+
+        const status = await res.json();
+
+        console.log("📡 Device status:", status);
+
+        setConnStatus(status.online);
+
+    } catch (e) {
+        console.error("❌ Status error:", e);
+        setConnStatus(false);
+    }
+}
 
     renderLCD(
       rows.length ? rows[rows.length - 1] : null
