@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>تسجيل الدخول — Temp Monitor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+<style>
+  .login-wrap{
+    min-height:100vh; display:flex; align-items:center; justify-content:center; padding:20px;
+  }
+  .login-box{
+    width:100%; max-width:360px;
+    background:var(--bg-panel); border:1px solid var(--border); border-radius:var(--radius);
+    padding:32px 28px;
+  }
+  .login-brand{ display:flex; align-items:center; gap:8px; margin-bottom:22px; justify-content:center; }
+  .login-brand .brand-dot{ width:9px; height:9px; border-radius:50%; background:var(--green); box-shadow:0 0 8px 2px rgba(63,224,122,0.7); }
+  .login-brand span{ font-weight:700; font-size:1.05rem; }
+  .field{ margin-bottom:16px; }
+  .field label{
+    display:block; font-family:'JetBrains Mono',monospace; font-size:0.7rem;
+    color:var(--text-muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:6px;
+  }
+  .field input{
+    width:100%; background:var(--bg); border:1px solid var(--border);
+    color:var(--text); border-radius:6px; padding:10px 12px;
+    font-family:'JetBrains Mono',monospace; font-size:0.9rem;
+  }
+  .field input:focus{ outline:none; border-color:var(--green); }
+  .login-btn{
+    width:100%; background:var(--green-dim); border:1px solid var(--green);
+    color:var(--green); padding:10px; border-radius:6px; font-weight:700;
+    font-family:'JetBrains Mono',monospace; letter-spacing:1px; cursor:pointer; margin-top:6px;
+  }
+  .login-btn:hover{ background:rgba(63,224,122,0.18); }
+  .flash{
+    background:rgba(255,93,93,0.1); border:1px solid var(--red); color:var(--red);
+    padding:8px 12px; border-radius:6px; font-size:0.82rem; margin-bottom:16px;
+  }
+</style>
+</head>
+<body>
+<div class="scanlines" aria-hidden="true"></div>
+
+<div class="login-wrap">
+  <div class="login-box">
+    <div class="login-brand">
+      <span class="brand-dot"></span>
+      <span>غرفة المراقبة</span>
+    </div>
+
+    {% with messages = get_flashed_messages() %}
+      {% if messages %}
+        {% for m in messages %}
+          <div class="flash">{{ m }}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <form method="POST">
+      <div class="field">
+        <label for="username">اسم المستخدم</label>
+        <input type="text" id="username" name="username" required autofocus>
+      </div>
+      <div class="field">
+        <label for="password">كلمة المرور</label>
+        <input type="password" id="password" name="password" required>
+      </div>
+      <button type="submit" class="login-btn">دخول</button>
+    </form>
+  </div>
+</div>
+
+</body>
+</html>

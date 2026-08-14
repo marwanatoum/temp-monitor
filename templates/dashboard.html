@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>غرفة المراقبة — Temp Monitor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+<div class="scanlines" aria-hidden="true"></div>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="brand-dot"></span>
+    <span class="brand-text">غرفة المراقبة</span>
+    <span class="brand-sub">TEMP MONITOR / RS485 → CLOUD</span>
+  </div>
+  <div class="status" id="conn-status">
+    <span class="status-led" id="conn-led"></span>
+    <span id="conn-label">جارٍ الاتصال…</span>
+    <span class="user-chip">{{ username }}</span>
+    <a href="{{ url_for('logout') }}" class="logout-link">خروج</a>
+  </div>
+</header>
+
+<main class="layout">
+
+  <section class="panel-row">
+    <div class="lcd-card" id="lcd-card">
+      <div class="lcd-card-head">
+        <label for="device-select">الجهاز</label>
+        <select id="device-select"></select>
+      </div>
+
+      <div class="lcd-screen" id="lcd-screen">
+        <div class="lcd-top">
+          <span class="lcd-tag">°C</span>
+          <span class="lcd-tag" id="lcd-time">--:--:--</span>
+        </div>
+        <div class="lcd-digits" id="lcd-digits">--.-</div>
+        <div class="lcd-bottom">
+          <span class="lcd-chip" id="lcd-chip-state">لا بيانات</span>
+          <span class="lcd-chip" id="lcd-chip-humidity">RH --%</span>
+        </div>
+      </div>
+
+      <div class="lcd-legend">
+        <div class="legend-item"><span class="dot dot-ok"></span> طبيعي</div>
+        <div class="legend-item"><span class="dot dot-warn"></span> تنبيه</div>
+        <div class="legend-item"><span class="dot dot-off"></span> غير متصل</div>
+      </div>
+    </div>
+
+    <div class="info-card">
+      <h2>آخر تحديث</h2>
+      <p class="info-line" id="last-update">—</p>
+      <h2>عدد القراءات المعروضة</h2>
+      <p class="info-line" id="reading-count">0</p>
+      <h2>المدى</h2>
+      <p class="info-line" id="min-max">—</p>
+    </div>
+  </section>
+
+  <section class="chart-card">
+    <div class="chart-head">
+      <h2>تطور الحرارة</h2>
+      <div class="chart-controls">
+        <button class="range-btn active" data-limit="60">آخر 60</button>
+        <button class="range-btn" data-limit="200">آخر 200</button>
+        <button class="range-btn" data-limit="1000">الكل</button>
+      </div>
+    </div>
+    <canvas id="tempChart" height="90"></canvas>
+  </section>
+
+  <section class="table-card">
+    <h2>سجل القراءات</h2>
+    <div class="table-wrap">
+      <table id="readings-table">
+        <thead>
+          <tr>
+            <th>الوقت</th>
+            <th>الجهاز</th>
+            <th>الحرارة °C</th>
+            <th>الرطوبة %</th>
+            <th>الحالة</th>
+          </tr>
+        </thead>
+        <tbody id="readings-tbody">
+          <tr><td colspan="5" class="empty-row">بانتظار أول قراءة من الجهاز…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="api-card">
+    <h2>إرسال قراءة (من ESP32)</h2>
+    <pre><code>POST /api/reading
+Content-Type: application/json
+
+{
+  "api_key": "changeme-esp32-key",
+  "device_id": "dixell-chambre-1",
+  "temperature": 4.2,
+  "humidity": 55.0,
+  "alarm": false
+}</code></pre>
+  </section>
+
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>
