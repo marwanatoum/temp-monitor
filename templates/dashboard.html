@@ -17,8 +17,13 @@
   <div class="brand">
     <span class="brand-dot"></span>
     <span class="brand-text" data-i18n="brand_text">غرفة المراقبة</span>
-    <span class="brand-sub" data-i18n="brand_sub">TEMP MONITOR / RS485 → CLOUD</span>
   </div>
+
+  <nav class="nav-links">
+    <a href="{{ url_for('dashboard') }}" class="nav-link active" data-i18n="nav_dashboard">اللوحة</a>
+    <a href="{{ url_for('devices_page') }}" class="nav-link" data-i18n="nav_devices">إدارة الأجهزة</a>
+    <a href="{{ url_for('map_page') }}" class="nav-link" data-i18n="nav_map">الخريطة</a>
+  </nav>
 
   <div class="topbar-controls">
     <div class="lang-switch">
@@ -26,7 +31,6 @@
       <button class="lang-btn" data-lang="fr" onclick="setLang('fr')">FR</button>
       <button class="lang-btn" data-lang="en" onclick="setLang('en')">EN</button>
     </div>
-
     <label class="theme-switch" title="Dark / Light">
       <input type="checkbox" id="theme-toggle" onchange="toggleTheme()">
       <span class="theme-slider">
@@ -34,7 +38,6 @@
         <span class="theme-icon moon">☾</span>
       </span>
     </label>
-
     <div class="status" id="conn-status">
       <span class="status-led" id="conn-led"></span>
       <span id="conn-label" data-i18n="conn_connecting">جارٍ الاتصال…</span>
@@ -46,74 +49,97 @@
 
 <main class="layout">
 
-  <section class="type-tabs" id="type-tabs"></section>
-
-  <section class="device-grid" id="device-grid"></section>
-
-  <section class="detail-row">
-    <div class="info-card">
-      <div class="info-card-head">
-        <h2 id="selected-device-title" data-i18n="select_device_hint">اختر جهازاً لعرض السجل والرسم البياني</h2>
-        <div class="export-buttons">
-          <a href="#" id="export-csv-btn" class="export-btn" data-i18n="export_csv">CSV ⬇</a>
-          <a href="#" id="export-xlsx-btn" class="export-btn" data-i18n="export_xlsx">Excel ⬇</a>
-        </div>
+  <section class="form-card" id="device-picker-card">
+    <div class="form-row">
+      <div class="form-field">
+        <label for="device-select" data-i18n="device_label">الجهاز</label>
+        <select id="device-select"></select>
       </div>
-      <div class="info-stats">
-        <div>
-          <h2 data-i18n="info_last_update">آخر تحديث</h2>
-          <p class="info-line" id="last-update">—</p>
-        </div>
-        <div>
-          <h2 data-i18n="info_reading_count">عدد القراءات المعروضة</h2>
-          <p class="info-line" id="reading-count">0</p>
-        </div>
-      </div>
+    </div>
+    <div id="no-devices-hint" class="empty-state" style="display:none;" data-i18n="no_devices_hint">
+      لا توجد أجهزة بعد. أضف جهازاً من صفحة "إدارة الأجهزة" أولاً.
     </div>
   </section>
 
-  <section class="chart-card">
-    <div class="chart-head">
-      <h2 data-i18n="chart_title">تطور الحرارة</h2>
-      <div class="chart-controls">
-        <select id="metric-select"></select>
-        <button class="range-btn active" data-limit="60" data-i18n="range_60">آخر 60</button>
-        <button class="range-btn" data-limit="200" data-i18n="range_200">آخر 200</button>
-        <button class="range-btn" data-limit="1000" data-i18n="range_all">الكل</button>
+  <section id="device-detail" style="display:none;">
+
+    <div class="form-card range-picker" style="margin-bottom:22px;">
+      <div class="form-field">
+        <label for="range-from" data-i18n="range_from">من تاريخ</label>
+        <input type="datetime-local" id="range-from">
+      </div>
+      <div class="form-field">
+        <label for="range-to" data-i18n="range_to">إلى تاريخ</label>
+        <input type="datetime-local" id="range-to">
+      </div>
+      <button class="btn btn-primary" id="range-apply-btn" data-i18n="range_apply">تطبيق</button>
+      <button class="btn btn-ghost" id="range-reset-btn" data-i18n="range_reset">إعادة ضبط</button>
+      <div class="export-buttons" style="margin-inline-start:auto;">
+        <a href="#" id="export-csv-btn" class="export-btn" data-i18n="export_csv">CSV ⬇</a>
+        <a href="#" id="export-xlsx-btn" class="export-btn" data-i18n="export_xlsx">Excel ⬇</a>
       </div>
     </div>
-    <canvas id="tempChart" height="90"></canvas>
-  </section>
 
-  <section class="table-card">
-    <h2 data-i18n="table_title">سجل القراءات</h2>
-    <div class="table-wrap">
-      <table id="readings-table">
-        <thead>
-          <tr id="readings-thead-row">
-            <th data-i18n="th_time">الوقت</th>
-            <th data-i18n="th_status">الحالة</th>
-          </tr>
-        </thead>
-        <tbody id="readings-tbody">
-          <tr><td colspan="5" class="empty-row" data-i18n="table_empty">بانتظار أول قراءة من الجهاز…</td></tr>
-        </tbody>
-      </table>
-    </div>
-  </section>
+    <section class="panel-row" style="display:grid; grid-template-columns:1.3fr 1fr; gap:18px; margin-bottom:22px;">
+      <div class="lcd-card" style="background:var(--bg-panel); border:1px solid var(--border); border-radius:var(--radius); padding:18px 20px;">
+        <div class="lcd-screen" id="lcd-screen">
+          <div class="lcd-top">
+            <span class="lcd-tag">°C</span>
+            <span class="lcd-tag" id="lcd-time">--:--:--</span>
+          </div>
+          <div class="lcd-digits" id="lcd-digits">--.-</div>
+          <div class="lcd-bottom">
+            <span class="lcd-chip" id="lcd-chip-state" data-i18n="lcd_no_data">لا بيانات</span>
+            <span class="lcd-chip" id="lcd-chip-humidity">RH --%</span>
+          </div>
+          <div class="lcd-error" id="lcd-error"></div>
+        </div>
+        <div class="device-metrics" id="tags-chips" style="margin-top:14px;"></div>
+      </div>
 
-  <section class="api-card">
-    <h2 data-i18n="api_title">إرسال قراءة (من ESP32)</h2>
-    <pre><code>POST /api/reading
+      <div class="info-card">
+        <h2 data-i18n="info_last_update">آخر تحديث</h2>
+        <p class="info-line" id="last-update" style="font-family:'JetBrains Mono',monospace; font-size:1rem; margin:0 0 16px;">—</p>
+        <h2 data-i18n="info_reading_count">عدد القراءات</h2>
+        <p class="info-line" id="reading-count" style="font-family:'JetBrains Mono',monospace; font-size:1rem; margin:0;">0</p>
+      </div>
+    </section>
+
+    <section class="chart-card" style="margin-bottom:22px;">
+      <div class="chart-head">
+        <h2 data-i18n="chart_title">الرسم البياني</h2>
+        <div class="chart-controls">
+          <select id="metric-select"></select>
+        </div>
+      </div>
+      <canvas id="tempChart" height="90"></canvas>
+    </section>
+
+    <section class="table-card" style="margin-bottom:22px;">
+      <h2 data-i18n="table_title">سجل القراءات</h2>
+      <div class="table-wrap">
+        <table id="readings-table">
+          <thead>
+            <tr id="readings-thead-row"></tr>
+          </thead>
+          <tbody id="readings-tbody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="api-card">
+      <h2 data-i18n="api_title">إرسال قراءة (من ESP32)</h2>
+      <pre><code id="api-example">POST /api/reading
 Content-Type: application/json
 
 {
   "api_key": "changeme-esp32-key",
-  "device_id": "vfd-pump-1",
-  "device_type": "vfd",
-  "metrics": { "frequency_hz": 45.2, "current_a": 3.1, "power_kw": 2.4 },
-  "alarm": false
+  "device_id": "...",
+  "temperature": 4.2,
+  "humidity": 55.0
 }</code></pre>
+    </section>
+
   </section>
 
 </main>

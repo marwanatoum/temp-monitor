@@ -1,38 +1,10 @@
-# Temp Monitor — نموذج مراقبة الحرارة (Prototype)
+# Temp Monitor — نظام مراقبة أجهزة صناعية (v2)
 
-سيرفر Flask بسيط يستقبل قراءات الحرارة من جهاز ESP32 (متصل بمنظم Dixell عبر RS485)
-عبر HTTP، يخزنها في SQLite، ويعرضها في لوحة تحكم على الويب بتصميم يحاكي شاشة LCD صناعية.
-
-## أنواع الأجهزة المدعومة
-
-المشروع يدعم الآن عدة أنواع من الأجهزة الصناعية، كل نوع بقيمه (metrics) الخاصة:
-
-| النوع (device_type) | القيم (metrics) |
-|---|---|
-| `temperature` | `temperature` (°C), `humidity` (%) |
-| `regulator` | `temperature` (°C), `setpoint` (°C) |
-| `vfd` | `frequency_hz` (Hz), `current_a` (A), `power_kw` (kW) |
-| `valve` | `position_pct` (%) |
-| `pressure` | `pressure_bar` (bar) |
-| `flow` | `flow_m3h` (m³/h) |
-
-اللوحة تعرض تبويباً منفصلاً لكل نوع، وبطاقة لكل جهاز تعرض جميع قيمه.
-
-### مثال إرسال قراءة VFD
-
-```bash
-curl -X POST http://localhost:5000/api/reading \
-  -H "Content-Type: application/json" \
-  -d '{
-        "api_key": "changeme-esp32-key",
-        "device_id": "vfd-pump-1",
-        "device_type": "vfd",
-        "metrics": {"frequency_hz": 45.2, "current_a": 3.1, "power_kw": 2.4},
-        "alarm": false
-      }'
-```
-
-> ⚠️ `device_type` مطلوب فقط أول مرة (أو عند تغييره). القراءات اللاحقة لنفس `device_id` لا تحتاجه.
+نظام لإدارة أجهزة صناعية متعددة (حرارة، VFD، فالفات...) عبر سيرفر Flask.
+كل جهاز يُضاف يدوياً من صفحة "إدارة الأجهزة"، مع إمكانية تحديد:
+- عتبات حرارة دنيا/قصوى (تنبيه تلقائي)
+- إحداثيات GPS (تظهر في صفحة "الخريطة")
+- قيم إضافية مخصصة (Tags) بأي عدد — مفيد لأجهزة مثل VFD (تردد، تيار، قدرة...)
 
 ## التشغيل محلياً
 
@@ -41,80 +13,84 @@ pip install -r requirements.txt
 python app.py
 ```
 
-ثم افتح المتصفح على: `http://localhost:5000`
+افتح `http://localhost:5000` — حساب افتراضي: `admin` / `admin123`
 
-سيتم إنشاء حساب افتراضي تلقائياً عند أول تشغيل:
-- **اسم المستخدم:** `admin`
-- **كلمة المرور:** `admin123`
+## الصفحات
 
-> ⚠️ غيّر كلمة المرور فور أول تشغيل حقيقي (أو غيّر `DEFAULT_USERNAME`/`DEFAULT_PASSWORD`
-> عبر متغيرات البيئة قبل أول تشغيل).
+| الصفحة | الوصف |
+|---|---|
+| `/login` | تسجيل الدخول |
+| `/` | اللوحة الرئيسية — اختيار جهاز واحد، منتقي تاريخ/وقت، شاشة LCD (للحرارة)، chips (للـ tags)، رسم بياني، جدول |
+| `/devices` | إدارة الأجهزة — إضافة/حذف، تعريف الـ tags |
+| `/map` | خريطة تعرض كل الأجهزة عندها إحداثيات |
 
-## إرسال قراءة تجريبية (لتجربة اللوحة بدون ESP32)
+## إضافة جهاز
 
-```bash
-curl -X POST http://localhost:5000/api/reading \
-  -H "Content-Type: application/json" \
-  -d '{
-        "api_key": "changeme-esp32-key",
-        "device_id": "dixell-chambre-1",
-        "temperature": 4.2,
-        "humidity": 55.0,
-        "alarm": false
-      }'
-```
+من صفحة `/devices`، أدخل:
+- `device_id` (إجباري، فريد)
+- وصف قصير (اختياري)
+- إحداثيات (اختياري، لتظهر في الخريطة)
+- حرارة دنيا/قصوى (اختياري، للتنبيه التلقائي)
+- Tags: زر "➕ إضافة tag" لإضافة قيم مخصصة (اسم + وحدة قياس)، بلا حد
 
-## مثال كود ESP32 (Arduino, WiFi)
+**⚠️ الجهاز يجب أن يُضاف من هنا قبل إرسال أي قراءة، وإلا يرفضه السيرفر (404).**
 
-بعد قراءة الحرارة من Dixell عبر Modbus RTU (RS485)، يرسلها ESP32 بهذا الشكل:
+## إرسال قراءة (POST /api/reading)
 
-```cpp
-#include <WiFi.h>
-#include <HTTPClient.h>
-
-const char* ssid     = "WIFI_SSID";
-const char* password = "WIFI_PASSWORD";
-const char* serverUrl = "http://SERVER_IP:5000/api/reading";
-
-void sendReading(float temperature, float humidity, bool alarm) {
-  HTTPClient http;
-  http.begin(serverUrl);
-  http.addHeader("Content-Type", "application/json");
-
-  String payload = "{";
-  payload += "\"api_key\":\"changeme-esp32-key\",";
-  payload += "\"device_id\":\"dixell-chambre-1\",";
-  payload += "\"temperature\":" + String(temperature, 1) + ",";
-  payload += "\"humidity\":" + String(humidity, 1) + ",";
-  payload += "\"alarm\":" + String(alarm ? "true" : "false");
-  payload += "}";
-
-  int code = http.POST(payload);
-  http.end();
+### جهاز حرارة عادي (AM2302B مثلاً)
+```json
+{
+  "api_key": "changeme-esp32-key",
+  "device_id": "am2302b-1",
+  "temperature": 4.2,
+  "humidity": 55.0
 }
 ```
+التنبيه (`alarm`) يُحسب تلقائياً إذا `temperature` خارج `temp_min`/`temp_max` المسجّلين للجهاز.
 
-> غيّر `DEVICE_API_KEY` في `app.py` (أو عبر متغيّر بيئة) قبل أي استخدام حقيقي.
+### جهاز بـ tags مخصصة (VFD مثلاً)
+```json
+{
+  "api_key": "changeme-esp32-key",
+  "device_id": "vfd-pump-1",
+  "values": {"التردد": 45.2, "التيار": 3.1}
+}
+```
+أسماء المفاتيح في `values` يجب أن تطابق أسماء الـ tags المعرّفة للجهاز في `/devices`.
 
-## النشر على استضافة مجانية (Render مثلاً)
+## القراءة والتصدير (مع فلترة زمنية)
 
-1. ارفع هذا المجلد كمستودع GitHub.
-2. أنشئ حساب على render.com → New Web Service → اربطه بالمستودع.
-3. Build command: `pip install -r requirements.txt`
-4. Start command: `python app.py`
-5. أضف متغيّر البيئة `DEVICE_API_KEY` بقيمة سرية خاصة بك.
-6. بعد النشر، استعمل الرابط الذي يعطيك إياه Render بدل `SERVER_IP` في كود ESP32
-   (استعمل 4G/SIM module لو الجهاز بعيد عن الواي فاي).
+- `GET /api/readings?device_id=...&from=ISO_DATE&to=ISO_DATE&limit=500`
+- `GET /api/export/csv?device_id=...&from=...&to=...&lang=ar|fr|en`
+- `GET /api/export/xlsx?device_id=...&from=...&to=...&lang=ar|fr|en`
+
+`from`/`to` اختياريان — بدونهما يرجع كل السجل.
 
 ## البنية
 
 ```
 temp_monitor/
-├── app.py                 # سيرفر Flask + API + قاعدة البيانات
+├── app.py                 # السيرفر: قاعدة بيانات، API، صفحات
 ├── requirements.txt
 ├── templates/
-│   └── dashboard.html     # صفحة اللوحة
+│   ├── login.html
+│   ├── dashboard.html
+│   ├── devices.html
+│   └── map.html
 └── static/
-    ├── style.css          # التصميم (شاشة LCD صناعية)
-    └── app.js             # جلب البيانات وتحديث اللوحة كل 5 ثوان
+    ├── style.css
+    ├── i18n.js             # الترجمة (AR/FR/EN) + الوضع الليلي/النهاري
+    ├── app.js              # منطق اللوحة الرئيسية
+    ├── devices.js          # منطق صفحة إدارة الأجهزة
+    └── map.js              # منطق صفحة الخريطة (Leaflet.js)
 ```
+
+## النشر على Render (مجاني)
+
+1. ارفع المشروع لمستودع GitHub
+2. Render → New Web Service → اربط المستودع
+3. Build Command: `pip install -r requirements.txt`
+4. Start Command: `python3 app.py`
+5. Environment Variables: `DEVICE_API_KEY`, `SECRET_KEY` (وأي قيم أخرى تريد تخصيصها)
+
+> ⚠️ على الخطة المجانية، قاعدة البيانات SQLite قد تُمسح عند إعادة النشر. للاستخدام الحقيقي، استعمل قاعدة بيانات خارجية دائمة.

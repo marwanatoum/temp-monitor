@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Temp Monitor — Map</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+<script src="{{ url_for('static', filename='i18n.js') }}"></script>
+</head>
+<body>
+
+<div class="scanlines" aria-hidden="true"></div>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="brand-dot"></span>
+    <span class="brand-text" data-i18n="brand_text">غرفة المراقبة</span>
+  </div>
+
+  <nav class="nav-links">
+    <a href="{{ url_for('dashboard') }}" class="nav-link" data-i18n="nav_dashboard">اللوحة</a>
+    <a href="{{ url_for('devices_page') }}" class="nav-link" data-i18n="nav_devices">إدارة الأجهزة</a>
+    <a href="{{ url_for('map_page') }}" class="nav-link active" data-i18n="nav_map">الخريطة</a>
+  </nav>
+
+  <div class="topbar-controls">
+    <div class="lang-switch">
+      <button class="lang-btn" data-lang="ar" onclick="setLang('ar')">AR</button>
+      <button class="lang-btn" data-lang="fr" onclick="setLang('fr')">FR</button>
+      <button class="lang-btn" data-lang="en" onclick="setLang('en')">EN</button>
+    </div>
+    <label class="theme-switch" title="Dark / Light">
+      <input type="checkbox" id="theme-toggle" onchange="toggleTheme()">
+      <span class="theme-slider">
+        <span class="theme-icon sun">☀</span>
+        <span class="theme-icon moon">☾</span>
+      </span>
+    </label>
+    <div class="status">
+      <span class="user-chip">{{ username }}</span>
+      <a href="{{ url_for('logout') }}" class="logout-link" data-i18n="logout">خروج</a>
+    </div>
+  </div>
+</header>
+
+<main class="layout">
+  <h2 data-i18n="map_title" style="font-size:1rem; text-transform:none; letter-spacing:0;">خريطة الأجهزة</h2>
+  <div id="map"></div>
+  <div id="map-empty" class="empty-state" style="display:none; margin-top:14px;" data-i18n="map_no_coords">
+    لا يوجد جهاز عنده إحداثيات محفوظة بعد
+  </div>
+</main>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="{{ url_for('static', filename='map.js') }}"></script>
+</body>
+</html>

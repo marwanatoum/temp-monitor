@@ -1,35 +1,24 @@
-const state = {
-  devices: [],       // [{device_id, device_type, display_name}]
-  deviceTypes: {},   // {vfd: {frequency_hz: "Hz", ...}, ...}
-  activeType: 'all',
-  selectedDevice: null,
-  selectedMetric: null,
-  limit: 60,
-  chart: null,
-  latestByDevice: {}, // device_id -> آخر قراءة (لعرض البطاقات)
-};
+const $ = (id) => document.getElementById(id);
 
-// إذا لم تصل قراءة جديدة خلال هذه المدة، نعتبر الجهاز منقطعاً
 const STALE_THRESHOLD_MS = 3 * 60 * 1000;
 
-const $ = (id) => document.getElementById(id);
+const state = {
+  devices: [],
+  selectedDevice: null,
+  selectedDeviceObj: null,
+  selectedMetric: 'temperature', // 'temperature' | 'humidity' | tag_name
+  chart: null,
+  dateFrom: null,
+  dateTo: null,
+};
 
 function fmtTime(iso) {
   const d = new Date(iso);
   return d.toLocaleTimeString('ar-MA', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 }
 
-function metricLabel(key) {
-  return t(`metric_${key}`) !== `metric_${key}` ? t(`metric_${key}`) : key;
-}
-
-function metricUnit(key) {
-  return METRIC_UNITS[key] || '';
-}
-
-function typeLabel(type) {
-  const key = `type_${type}`;
-  return t(key) !== key ? t(key) : type;
+function fmtDateTime(iso) {
+  return new Date(iso).toLocaleString('ar-MA');
 }
 
 function isStaleReading(reading) {
@@ -37,168 +26,158 @@ function isStaleReading(reading) {
   return (Date.now() - new Date(reading.created_at).getTime()) > STALE_THRESHOLD_MS;
 }
 
-// ------------- جلب البيانات الأساسية -------------
-async function fetchDeviceTypes() {
-  const res = await fetch('/api/device-types');
-  state.deviceTypes = await res.json();
+function formatAge(ms) {
+  const mins = Math.floor(ms / 60000);
+  if (mins < 1) return t('age_less_min');
+  if (mins === 1) return t('age_one_min');
+  if (mins < 60) return `${mins} ${t('age_mins')}`;
+  const hours = Math.floor(mins / 60);
+  return `${hours} ${t('age_hours')}`;
 }
 
-async function fetchDevices() {
+// ------------- تحميل قائمة الأجهزة -------------
+async function loadDeviceList() {
   const res = await fetch('/api/devices');
   state.devices = await res.json();
-}
 
-async function fetchLatestForDevice(deviceId) {
-  const res = await fetch(`/api/readings?device_id=${encodeURIComponent(deviceId)}&limit=1`);
-  const rows = await res.json();
-  return rows.length ? rows[rows.length - 1] : null;
-}
+  const select = $('device-select');
+  const noDevicesHint = $('no-devices-hint');
+  const detail = $('device-detail');
 
-async function refreshAllLatest() {
-  await Promise.all(state.devices.map(async (dev) => {
-    state.latestByDevice[dev.device_id] = await fetchLatestForDevice(dev.device_id);
-  }));
-}
-
-// ------------- تبويبات الأنواع -------------
-function renderTypeTabs() {
-  const container = $('type-tabs');
-  const presentTypes = [...new Set(state.devices.map((d) => d.device_type))];
-
-  let html = `<button class="type-tab ${state.activeType === 'all' ? 'active' : ''}" data-type="all">
-    <span class="type-tab-icon">📋</span> ${t('type_all')}
-  </button>`;
-
-  presentTypes.forEach((type) => {
-    const icon = TYPE_ICONS[type] || '🔹';
-    html += `<button class="type-tab ${state.activeType === type ? 'active' : ''}" data-type="${type}">
-      <span class="type-tab-icon">${icon}</span> ${typeLabel(type)}
-    </button>`;
-  });
-
-  container.innerHTML = html;
-  container.querySelectorAll('.type-tab').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      state.activeType = btn.dataset.type;
-      renderTypeTabs();
-      renderDeviceGrid();
-    });
-  });
-}
-
-// ------------- شبكة بطاقات الأجهزة -------------
-function renderDeviceGrid() {
-  const container = $('device-grid');
-  const devices = state.devices.filter(
-    (d) => state.activeType === 'all' || d.device_type === state.activeType
-  );
-
-  if (devices.length === 0) {
-    container.innerHTML = `<div class="empty-grid">${t('no_devices')}</div>`;
+  if (state.devices.length === 0) {
+    select.innerHTML = '';
+    noDevicesHint.style.display = 'block';
+    detail.style.display = 'none';
     return;
   }
 
-  container.innerHTML = devices.map((dev) => {
-    const reading = state.latestByDevice[dev.device_id];
-    const stale = isStaleReading(reading);
-    const alarm = reading && reading.alarm && !stale;
-    const icon = TYPE_ICONS[dev.device_type] || '🔹';
+  noDevicesHint.style.display = 'none';
+  select.innerHTML = `<option value="" disabled ${!state.selectedDevice ? 'selected' : ''}>${t('select_device_placeholder')}</option>` +
+    state.devices.map((d) => `<option value="${d.device_id}">${d.device_id}${d.description ? ' — ' + d.description : ''}</option>`).join('');
 
-    let statusClass = 'off';
-    if (!stale && reading) statusClass = alarm ? 'warn' : 'ok';
+  if (state.selectedDevice) {
+    select.value = state.selectedDevice;
+  }
+}
 
-    const metricsHtml = reading
-      ? Object.entries(reading.metrics).map(([k, v]) => `
-          <div class="metric-chip">
-            <span class="metric-value">${typeof v === 'number' ? v.toFixed(1) : v}</span>
-            <span class="metric-unit">${metricUnit(k)}</span>
-            <span class="metric-label">${metricLabel(k)}</span>
-          </div>
-        `).join('')
-      : `<div class="metric-chip empty">${t('lcd_no_data')}</div>`;
+function onDeviceChange(deviceId) {
+  state.selectedDevice = deviceId;
+  state.selectedDeviceObj = state.devices.find((d) => d.device_id === deviceId) || null;
+  state.selectedMetric = 'temperature';
+  $('device-detail').style.display = 'block';
+  updateApiExample();
+  loadAndRenderDetail();
+}
 
-    const isSelected = state.selectedDevice === dev.device_id;
+function updateApiExample() {
+  if (!state.selectedDeviceObj) return;
+  const dev = state.selectedDeviceObj;
+  let example;
+  if (dev.tags && dev.tags.length > 0) {
+    const valuesObj = {};
+    dev.tags.forEach((tg) => { valuesObj[tg.tag_name] = 0; });
+    example = {
+      api_key: 'changeme-esp32-key',
+      device_id: dev.device_id,
+      values: valuesObj,
+    };
+  } else {
+    example = {
+      api_key: 'changeme-esp32-key',
+      device_id: dev.device_id,
+      temperature: 4.2,
+      humidity: 55.0,
+    };
+  }
+  $('api-example').textContent = `POST /api/reading\nContent-Type: application/json\n\n${JSON.stringify(example, null, 2)}`;
+}
 
+// ------------- منتقي التاريخ/الوقت -------------
+function getRangeParams() {
+  const params = new URLSearchParams();
+  if (state.dateFrom) params.set('from', new Date(state.dateFrom).toISOString());
+  if (state.dateTo) params.set('to', new Date(state.dateTo).toISOString());
+  return params;
+}
+
+$('range-apply-btn').addEventListener('click', () => {
+  state.dateFrom = $('range-from').value || null;
+  state.dateTo = $('range-to').value || null;
+  loadAndRenderDetail();
+});
+
+$('range-reset-btn').addEventListener('click', () => {
+  $('range-from').value = '';
+  $('range-to').value = '';
+  state.dateFrom = null;
+  state.dateTo = null;
+  loadAndRenderDetail();
+});
+
+// ------------- الشاشة (LCD) للحرارة + chips للـ tags -------------
+function renderLCDAndTags(reading, device) {
+  const digits = $('lcd-digits');
+  const chipState = $('lcd-chip-state');
+  const chipHumidity = $('lcd-chip-humidity');
+  const time = $('lcd-time');
+  const errorBanner = $('lcd-error');
+  const tagsContainer = $('tags-chips');
+  const lcdScreen = $('lcd-screen');
+
+  const hasTemperature = device.temp_min != null || device.temp_max != null || (reading && reading.temperature != null);
+  lcdScreen.style.display = 'block';
+
+  if (!reading) {
+    digits.textContent = '--.-';
+    digits.className = 'lcd-digits off';
+    chipState.textContent = t('lcd_no_data');
+    chipHumidity.textContent = 'RH --%';
+    time.textContent = '--:--:--';
+    errorBanner.classList.remove('show');
+    tagsContainer.innerHTML = '';
+    return;
+  }
+
+  const stale = isStaleReading(reading);
+  const ageMs = Date.now() - new Date(reading.created_at).getTime();
+
+  if (stale) {
+    digits.textContent = '##';
+    digits.className = 'lcd-digits error';
+    chipState.textContent = t('lcd_offline');
+    chipHumidity.textContent = reading.humidity != null ? `RH ${reading.humidity}%` : 'RH --%';
+    time.textContent = fmtTime(reading.created_at);
+    errorBanner.textContent = `${t('lcd_error_prefix')} ${formatAge(ageMs)}`;
+    errorBanner.classList.add('show');
+  } else {
+    errorBanner.classList.remove('show');
+    digits.textContent = reading.temperature != null ? reading.temperature.toFixed(1) : '--.-';
+    digits.className = 'lcd-digits' + (reading.alarm ? ' warn' : '');
+    chipState.textContent = reading.alarm ? t('lcd_alarm') : t('lcd_normal');
+    chipHumidity.textContent = reading.humidity != null ? `RH ${reading.humidity}%` : 'RH --%';
+    time.textContent = fmtTime(reading.created_at);
+  }
+
+  // إخفاء الشاشة كلياً إذا الجهاز ما عندوش حرارة أصلاً (فقط tags)
+  lcdScreen.style.display = (reading.temperature != null || device.temp_min != null || device.temp_max != null) ? 'block' : 'none';
+
+  // عرض قيم الـ tags كـ chips
+  const values = reading.values || {};
+  const tagEntries = Object.entries(values);
+  tagsContainer.innerHTML = tagEntries.length === 0 ? '' : tagEntries.map(([k, v]) => {
+    const tagDef = (device.tags || []).find((tg) => tg.tag_name === k);
+    const unit = tagDef ? (tagDef.unit || '') : '';
     return `
-      <div class="device-card ${isSelected ? 'selected' : ''}" data-device="${dev.device_id}">
-        <div class="device-card-head">
-          <span class="device-icon">${icon}</span>
-          <span class="device-name">${dev.display_name || dev.device_id}</span>
-          <span class="device-dot dot-${statusClass}"></span>
-        </div>
-        <div class="device-metrics">${metricsHtml}</div>
-        <div class="device-time">${reading ? fmtTime(reading.created_at) : '--:--:--'}</div>
+      <div class="metric-chip">
+        <span class="metric-value">${typeof v === 'number' ? v.toFixed(1) : v}</span>
+        <span class="metric-unit">${unit}</span>
+        <span class="metric-label">${k}</span>
       </div>
     `;
   }).join('');
-
-  container.querySelectorAll('.device-card').forEach((card) => {
-    card.addEventListener('click', () => selectDevice(card.dataset.device));
-  });
 }
 
-// ------------- اختيار جهاز لعرض السجل/الرسم البياني -------------
-function selectDevice(deviceId) {
-  state.selectedDevice = deviceId;
-  state.selectedMetric = null; // إعادة الضبط، سيُختار أول قيمة تلقائياً
-  renderDeviceGrid();
-  loadDeviceDetail();
-}
-
-function populateMetricSelect(metricKeys) {
-  const select = $('metric-select');
-  select.innerHTML = metricKeys.map((k) => `<option value="${k}">${metricLabel(k)} (${metricUnit(k)})</option>`).join('');
-  if (!state.selectedMetric || !metricKeys.includes(state.selectedMetric)) {
-    state.selectedMetric = metricKeys[0] || null;
-  }
-  select.value = state.selectedMetric;
-}
-
-function updateExportLinks() {
-  const csvBtn = $('export-csv-btn');
-  const xlsxBtn = $('export-xlsx-btn');
-  const params = new URLSearchParams();
-  if (state.selectedDevice) params.set('device_id', state.selectedDevice);
-  params.set('lang', getLang());
-  csvBtn.href = `/api/export/csv?${params.toString()}`;
-  xlsxBtn.href = `/api/export/xlsx?${params.toString()}`;
-}
-
-function renderTable(rows) {
-  const theadRow = $('readings-thead-row');
-  const tbody = $('readings-tbody');
-
-  const metricKeys = [];
-  rows.forEach((r) => Object.keys(r.metrics).forEach((k) => {
-    if (!metricKeys.includes(k)) metricKeys.push(k);
-  }));
-
-  theadRow.innerHTML = `<th data-i18n="th_time">${t('th_time')}</th>` +
-    metricKeys.map((k) => `<th>${metricLabel(k)}</th>`).join('') +
-    `<th data-i18n="th_status">${t('th_status')}</th>`;
-
-  if (rows.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="${metricKeys.length + 2}" class="empty-row">${t('table_empty')}</td></tr>`;
-    return;
-  }
-
-  const recent = [...rows].reverse().slice(0, 25);
-  tbody.innerHTML = recent.map((r) => `
-    <tr>
-      <td>${fmtTime(r.created_at)}</td>
-      ${metricKeys.map((k) => `<td>${r.metrics[k] != null ? r.metrics[k] : '—'}</td>`).join('')}
-      <td><span class="badge ${r.alarm ? 'badge-warn' : 'badge-ok'}">${r.alarm ? t('badge_alarm') : t('badge_normal')}</span></td>
-    </tr>
-  `).join('');
-}
-
-function renderStats(rows) {
-  $('reading-count').textContent = rows.length;
-  $('last-update').textContent = rows.length
-    ? new Date(rows[rows.length - 1].created_at).toLocaleString('ar-MA')
-    : '—';
-}
-
+// ------------- الرسم البياني -------------
 function initChart() {
   const ctx = $('tempChart').getContext('2d');
   state.chart = new Chart(ctx, {
@@ -218,61 +197,102 @@ function initChart() {
   });
 }
 
+function metricValue(reading, metric) {
+  if (metric === 'temperature') return reading.temperature;
+  if (metric === 'humidity') return reading.humidity;
+  return reading.values ? reading.values[metric] : undefined;
+}
+
+function populateMetricSelect(device) {
+  const select = $('metric-select');
+  const options = [];
+  options.push({ value: 'temperature', label: t('th_temp') });
+  options.push({ value: 'humidity', label: t('th_humidity') });
+  (device.tags || []).forEach((tg) => {
+    options.push({ value: tg.tag_name, label: tg.unit ? `${tg.tag_name} (${tg.unit})` : tg.tag_name });
+  });
+
+  select.innerHTML = options.map((o) => `<option value="${o.value}">${o.label}</option>`).join('');
+  select.value = state.selectedMetric;
+}
+
+$('metric-select').addEventListener('change', (e) => {
+  state.selectedMetric = e.target.value;
+  loadAndRenderDetail();
+});
+
 function renderChart(rows) {
-  if (!state.selectedMetric) {
-    state.chart.data.labels = [];
-    state.chart.data.datasets[0].data = [];
-    state.chart.update();
-    return;
-  }
-  const filtered = rows.filter((r) => r.metrics[state.selectedMetric] != null);
+  const filtered = rows.filter((r) => metricValue(r, state.selectedMetric) != null);
   state.chart.data.labels = filtered.map((r) => fmtTime(r.created_at));
-  state.chart.data.datasets[0].data = filtered.map((r) => r.metrics[state.selectedMetric]);
+  state.chart.data.datasets[0].data = filtered.map((r) => metricValue(r, state.selectedMetric));
   state.chart.update();
 }
 
-async function loadDeviceDetail() {
-  if (!state.selectedDevice) return;
+// ------------- الجدول -------------
+function renderTable(rows, device) {
+  const theadRow = $('readings-thead-row');
+  const tbody = $('readings-tbody');
+  const tagNames = (device.tags || []).map((tg) => tg.tag_name);
 
-  $('selected-device-title').textContent = state.selectedDevice;
+  theadRow.innerHTML = `<th>${t('th_time')}</th><th>${t('th_temp')}</th><th>${t('th_humidity')}</th>` +
+    tagNames.map((n) => `<th>${n}</th>`).join('') +
+    `<th>${t('th_status')}</th>`;
 
-  const res = await fetch(`/api/readings?device_id=${encodeURIComponent(state.selectedDevice)}&limit=${state.limit}`);
-  const rows = await res.json();
+  const colCount = 4 + tagNames.length;
 
-  const metricKeys = [];
-  rows.forEach((r) => Object.keys(r.metrics).forEach((k) => {
-    if (!metricKeys.includes(k)) metricKeys.push(k);
-  }));
-  populateMetricSelect(metricKeys);
+  if (rows.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="${colCount}" class="empty-row">${t('table_empty')}</td></tr>`;
+    return;
+  }
 
-  renderTable(rows);
-  renderStats(rows);
-  renderChart(rows);
-  updateExportLinks();
+  const recent = [...rows].reverse().slice(0, 50);
+  tbody.innerHTML = recent.map((r) => `
+    <tr>
+      <td>${fmtTime(r.created_at)}</td>
+      <td>${r.temperature != null ? r.temperature.toFixed(1) : '—'}</td>
+      <td>${r.humidity != null ? r.humidity : '—'}</td>
+      ${tagNames.map((n) => `<td>${(r.values && r.values[n] != null) ? r.values[n] : '—'}</td>`).join('')}
+      <td><span class="badge ${r.alarm ? 'badge-warn' : 'badge-ok'}">${r.alarm ? t('badge_alarm') : t('badge_normal')}</span></td>
+    </tr>
+  `).join('');
 }
 
-// ------------- التحديث الدوري -------------
-async function refresh() {
-  try {
-    await fetchDevices();
-    await refreshAllLatest();
+function renderStats(rows) {
+  $('reading-count').textContent = rows.length;
+  $('last-update').textContent = rows.length ? fmtDateTime(rows[rows.length - 1].created_at) : '—';
+}
 
-    if (!state.selectedDevice && state.devices.length > 0) {
-      state.selectedDevice = state.devices[0].device_id;
-    }
+// ------------- التصدير -------------
+function updateExportLinks() {
+  const params = getRangeParams();
+  params.set('device_id', state.selectedDevice);
+  params.set('lang', getLang());
+  $('export-csv-btn').href = `/api/export/csv?${params.toString()}`;
+  $('export-xlsx-btn').href = `/api/export/xlsx?${params.toString()}`;
+}
 
-    renderTypeTabs();
-    renderDeviceGrid();
+// ------------- التحميل والعرض الرئيسي -------------
+async function loadAndRenderDetail() {
+  if (!state.selectedDevice || !state.selectedDeviceObj) return;
 
-    if (state.selectedDevice) {
-      await loadDeviceDetail();
-    }
+  const device = state.selectedDeviceObj;
+  populateMetricSelect(device);
 
-    const anyOnline = state.devices.some((d) => !isStaleReading(state.latestByDevice[d.device_id]));
-    setConnStatus(anyOnline);
-  } catch (e) {
-    setConnStatus(false);
-  }
+  const params = getRangeParams();
+  params.set('device_id', state.selectedDevice);
+  params.set('limit', '500');
+
+  const res = await fetch(`/api/readings?${params.toString()}`);
+  const rows = await res.json();
+
+  const latest = rows.length ? rows[rows.length - 1] : null;
+  renderLCDAndTags(latest, device);
+  renderChart(rows);
+  renderTable(rows, device);
+  renderStats(rows);
+  updateExportLinks();
+
+  setConnStatus(!isStaleReading(latest));
 }
 
 function setConnStatus(ok) {
@@ -280,32 +300,22 @@ function setConnStatus(ok) {
   $('conn-label').textContent = ok ? t('conn_connected') : t('conn_disconnected');
 }
 
-// ------------- ربط مع نظام الترجمة (i18n.js) -------------
+// ------------- ربط مع نظام الترجمة -------------
 function onLanguageChange() {
-  renderTypeTabs();
-  renderDeviceGrid();
-  if (state.selectedDevice) loadDeviceDetail();
+  loadDeviceList();
+  if (state.selectedDevice) loadAndRenderDetail();
 }
 
 // ------------- الأحداث -------------
-document.querySelectorAll('.range-btn').forEach((btn) => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('.range-btn').forEach((b) => b.classList.remove('active'));
-    btn.classList.add('active');
-    state.limit = parseInt(btn.dataset.limit, 10);
-    if (state.selectedDevice) loadDeviceDetail();
-  });
-});
-
-$('metric-select').addEventListener('change', (e) => {
-  state.selectedMetric = e.target.value;
-  if (state.selectedDevice) loadDeviceDetail();
-});
+$('device-select').addEventListener('change', (e) => onDeviceChange(e.target.value));
 
 // ------------- init -------------
 (async function init() {
   initChart();
-  await fetchDeviceTypes();
-  await refresh();
-  setInterval(refresh, 5000);
+  await loadDeviceList();
+  if (state.devices.length > 0) {
+    $('device-select').value = state.devices[0].device_id;
+    onDeviceChange(state.devices[0].device_id);
+  }
+  setInterval(() => { if (state.selectedDevice) loadAndRenderDetail(); }, 5000);
 })();
