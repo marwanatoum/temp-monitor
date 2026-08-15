@@ -45,6 +45,8 @@ const TRANSLATIONS = {
     login_username: 'اسم المستخدم',
     login_password: 'كلمة المرور',
     login_button: 'دخول',
+    export_csv: 'CSV ⬇',
+    export_xlsx: 'Excel ⬇',
   },
   fr: {
     dir: 'ltr',
@@ -88,6 +90,8 @@ const TRANSLATIONS = {
     login_username: 'Nom d\u2019utilisateur',
     login_password: 'Mot de passe',
     login_button: 'Connexion',
+    export_csv: 'CSV ⬇',
+    export_xlsx: 'Excel ⬇',
   },
   en: {
     dir: 'ltr',
@@ -131,6 +135,8 @@ const TRANSLATIONS = {
     login_username: 'Username',
     login_password: 'Password',
     login_button: 'Log in',
+    export_csv: 'CSV ⬇',
+    export_xlsx: 'Excel ⬇',
   },
 };
 

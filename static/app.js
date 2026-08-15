@@ -161,6 +161,14 @@ function renderChart(rows) {
   state.chart.update();
 }
 
+function updateExportLinks() {
+  const csvBtn = $('export-csv-btn');
+  const xlsxBtn = $('export-xlsx-btn');
+  const q = state.device ? `?device_id=${encodeURIComponent(state.device)}` : '';
+  csvBtn.href = `/api/export/csv${q}`;
+  xlsxBtn.href = `/api/export/xlsx${q}`;
+}
+
 async function refresh() {
   try {
     if (!state.device) {
@@ -180,6 +188,7 @@ async function refresh() {
     renderTable(rows);
     renderStats(rows);
     renderChart(rows);
+    updateExportLinks();
   } catch (e) {
     setConnStatus(false);
   }

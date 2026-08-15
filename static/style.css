@@ -144,6 +144,16 @@ h2{
   border-radius:6px; padding:6px 10px; font-family:'JetBrains Mono',monospace; font-size:0.8rem;
 }
 
+.export-buttons{ display:flex; gap:8px; margin-bottom:14px; }
+.export-btn{
+  flex:1; text-align:center;
+  background:transparent; border:1px solid var(--border);
+  color:var(--text-muted); text-decoration:none;
+  font-family:'JetBrains Mono',monospace; font-size:0.72rem; font-weight:600;
+  padding:7px 10px; border-radius:6px; transition:border-color .2s, color .2s;
+}
+.export-btn:hover{ border-color:var(--green); color:var(--green); }
+
 .lcd-screen{
   background:radial-gradient(ellipse at 50% 0%, #0F1B14, #081009);
   border:1px solid var(--border-soft);
