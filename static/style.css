@@ -62,7 +62,7 @@ body{
   display:flex; justify-content:space-between; align-items:center;
   padding:18px 28px;
   border-bottom:1px solid var(--border);
-  background:linear-gradient(to bottom, #0F1713, rgba(15,23,19,0));
+  background:linear-gradient(to bottom, var(--bg-panel), rgba(0,0,0,0));
 }
 .brand{ display:flex; align-items:baseline; gap:10px; }
 .brand-dot{
