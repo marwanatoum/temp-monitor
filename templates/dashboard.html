@@ -3,10 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>غرفة المراقبة — Temp Monitor</title>
+<title>Temp Monitor</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+<script src="{{ url_for('static', filename='i18n.js') }}"></script>
 </head>
 <body>
 
@@ -15,14 +16,31 @@
 <header class="topbar">
   <div class="brand">
     <span class="brand-dot"></span>
-    <span class="brand-text">غرفة المراقبة</span>
-    <span class="brand-sub">TEMP MONITOR / RS485 → CLOUD</span>
+    <span class="brand-text" data-i18n="brand_text">غرفة المراقبة</span>
+    <span class="brand-sub" data-i18n="brand_sub">TEMP MONITOR / RS485 → CLOUD</span>
   </div>
-  <div class="status" id="conn-status">
-    <span class="status-led" id="conn-led"></span>
-    <span id="conn-label">جارٍ الاتصال…</span>
-    <span class="user-chip">{{ username }}</span>
-    <a href="{{ url_for('logout') }}" class="logout-link">خروج</a>
+
+  <div class="topbar-controls">
+    <div class="lang-switch">
+      <button class="lang-btn" data-lang="ar" onclick="setLang('ar')">AR</button>
+      <button class="lang-btn" data-lang="fr" onclick="setLang('fr')">FR</button>
+      <button class="lang-btn" data-lang="en" onclick="setLang('en')">EN</button>
+    </div>
+
+    <label class="theme-switch" title="Dark / Light">
+      <input type="checkbox" id="theme-toggle" onchange="toggleTheme()">
+      <span class="theme-slider">
+        <span class="theme-icon sun">☀</span>
+        <span class="theme-icon moon">☾</span>
+      </span>
+    </label>
+
+    <div class="status" id="conn-status">
+      <span class="status-led" id="conn-led"></span>
+      <span id="conn-label" data-i18n="conn_connecting">جارٍ الاتصال…</span>
+      <span class="user-chip">{{ username }}</span>
+      <a href="{{ url_for('logout') }}" class="logout-link" data-i18n="logout">خروج</a>
+    </div>
   </div>
 </header>
 
@@ -31,7 +49,7 @@
   <section class="panel-row">
     <div class="lcd-card" id="lcd-card">
       <div class="lcd-card-head">
-        <label for="device-select">الجهاز</label>
+        <label for="device-select" data-i18n="device_label">الجهاز</label>
         <select id="device-select"></select>
       </div>
 
@@ -42,63 +60,63 @@
         </div>
         <div class="lcd-digits" id="lcd-digits">--.-</div>
         <div class="lcd-bottom">
-          <span class="lcd-chip" id="lcd-chip-state">لا بيانات</span>
+          <span class="lcd-chip" id="lcd-chip-state" data-i18n="lcd_no_data">لا بيانات</span>
           <span class="lcd-chip" id="lcd-chip-humidity">RH --%</span>
         </div>
         <div class="lcd-error" id="lcd-error"></div>
       </div>
 
       <div class="lcd-legend">
-        <div class="legend-item"><span class="dot dot-ok"></span> طبيعي</div>
-        <div class="legend-item"><span class="dot dot-warn"></span> تنبيه</div>
-        <div class="legend-item"><span class="dot dot-off"></span> غير متصل</div>
+        <div class="legend-item"><span class="dot dot-ok"></span> <span data-i18n="legend_ok">طبيعي</span></div>
+        <div class="legend-item"><span class="dot dot-warn"></span> <span data-i18n="legend_warn">تنبيه</span></div>
+        <div class="legend-item"><span class="dot dot-off"></span> <span data-i18n="legend_off">غير متصل</span></div>
       </div>
     </div>
 
     <div class="info-card">
-      <h2>آخر تحديث</h2>
+      <h2 data-i18n="info_last_update">آخر تحديث</h2>
       <p class="info-line" id="last-update">—</p>
-      <h2>عدد القراءات المعروضة</h2>
+      <h2 data-i18n="info_reading_count">عدد القراءات المعروضة</h2>
       <p class="info-line" id="reading-count">0</p>
-      <h2>المدى</h2>
+      <h2 data-i18n="info_min_max">المدى</h2>
       <p class="info-line" id="min-max">—</p>
     </div>
   </section>
 
   <section class="chart-card">
     <div class="chart-head">
-      <h2>تطور الحرارة</h2>
+      <h2 data-i18n="chart_title">تطور الحرارة</h2>
       <div class="chart-controls">
-        <button class="range-btn active" data-limit="60">آخر 60</button>
-        <button class="range-btn" data-limit="200">آخر 200</button>
-        <button class="range-btn" data-limit="1000">الكل</button>
+        <button class="range-btn active" data-limit="60" data-i18n="range_60">آخر 60</button>
+        <button class="range-btn" data-limit="200" data-i18n="range_200">آخر 200</button>
+        <button class="range-btn" data-limit="1000" data-i18n="range_all">الكل</button>
       </div>
     </div>
     <canvas id="tempChart" height="90"></canvas>
   </section>
 
   <section class="table-card">
-    <h2>سجل القراءات</h2>
+    <h2 data-i18n="table_title">سجل القراءات</h2>
     <div class="table-wrap">
       <table id="readings-table">
         <thead>
           <tr>
-            <th>الوقت</th>
-            <th>الجهاز</th>
-            <th>الحرارة °C</th>
-            <th>الرطوبة %</th>
-            <th>الحالة</th>
+            <th data-i18n="th_time">الوقت</th>
+            <th data-i18n="th_device">الجهاز</th>
+            <th data-i18n="th_temp">الحرارة °C</th>
+            <th data-i18n="th_humidity">الرطوبة %</th>
+            <th data-i18n="th_status">الحالة</th>
           </tr>
         </thead>
         <tbody id="readings-tbody">
-          <tr><td colspan="5" class="empty-row">بانتظار أول قراءة من الجهاز…</td></tr>
+          <tr><td colspan="5" class="empty-row" data-i18n="table_empty">بانتظار أول قراءة من الجهاز…</td></tr>
         </tbody>
       </table>
     </div>
   </section>
 
   <section class="api-card">
-    <h2>إرسال قراءة (من ESP32)</h2>
+    <h2 data-i18n="api_title">إرسال قراءة (من ESP32)</h2>
     <pre><code>POST /api/reading
 Content-Type: application/json
 

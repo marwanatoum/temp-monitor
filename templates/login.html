@@ -7,10 +7,12 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+<script src="{{ url_for('static', filename='i18n.js') }}"></script>
 <style>
   .login-wrap{
-    min-height:100vh; display:flex; align-items:center; justify-content:center; padding:20px;
+    min-height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:20px; gap:16px;
   }
+  .top-controls{ display:flex; align-items:center; gap:14px; width:100%; max-width:360px; justify-content:center; }
   .login-box{
     width:100%; max-width:360px;
     background:var(--bg-panel); border:1px solid var(--border); border-radius:var(--radius);
@@ -46,10 +48,25 @@
 <div class="scanlines" aria-hidden="true"></div>
 
 <div class="login-wrap">
+  <div class="top-controls">
+    <div class="lang-switch">
+      <button class="lang-btn" data-lang="ar" onclick="setLang('ar')">AR</button>
+      <button class="lang-btn" data-lang="fr" onclick="setLang('fr')">FR</button>
+      <button class="lang-btn" data-lang="en" onclick="setLang('en')">EN</button>
+    </div>
+    <label class="theme-switch" title="Dark / Light">
+      <input type="checkbox" id="theme-toggle" onchange="toggleTheme()">
+      <span class="theme-slider">
+        <span class="theme-icon sun">☀</span>
+        <span class="theme-icon moon">☾</span>
+      </span>
+    </label>
+  </div>
+
   <div class="login-box">
     <div class="login-brand">
       <span class="brand-dot"></span>
-      <span>غرفة المراقبة</span>
+      <span data-i18n="brand_text">غرفة المراقبة</span>
     </div>
 
     {% with messages = get_flashed_messages() %}
@@ -62,14 +79,14 @@
 
     <form method="POST">
       <div class="field">
-        <label for="username">اسم المستخدم</label>
+        <label for="username" data-i18n="login_username">اسم المستخدم</label>
         <input type="text" id="username" name="username" required autofocus>
       </div>
       <div class="field">
-        <label for="password">كلمة المرور</label>
+        <label for="password" data-i18n="login_password">كلمة المرور</label>
         <input type="password" id="password" name="password" required>
       </div>
-      <button type="submit" class="login-btn">دخول</button>
+      <button type="submit" class="login-btn" data-i18n="login_button">دخول</button>
     </form>
   </div>
 </div>

@@ -17,7 +17,7 @@ function fmtTime(iso) {
 
 function setConnStatus(ok) {
   $('conn-led').classList.toggle('on', ok);
-  $('conn-label').textContent = ok ? 'متصل' : 'غير متصل';
+  $('conn-label').textContent = ok ? t('conn_connected') : t('conn_disconnected');
 }
 
 async function fetchDevices() {
@@ -86,7 +86,7 @@ function renderLCD(reading) {
   if (!reading) {
     digits.textContent = '--.-';
     digits.className = 'lcd-digits off';
-    chipState.textContent = 'لا بيانات';
+    chipState.textContent = t('lcd_no_data');
     chipHumidity.textContent = 'RH --%';
     time.textContent = '--:--:--';
     errorBanner.classList.remove('show');
@@ -99,10 +99,10 @@ function renderLCD(reading) {
   if (isStale) {
     digits.textContent = '##';
     digits.className = 'lcd-digits error';
-    chipState.textContent = '❌ منقطع';
+    chipState.textContent = t('lcd_offline');
     chipHumidity.textContent = reading.humidity != null ? `RH ${reading.humidity}%` : 'RH --%';
     time.textContent = fmtTime(reading.created_at);
-    errorBanner.textContent = `⚠ انقطع الاتصال بالجهاز — آخر قراءة منذ ${formatAge(ageMs)}`;
+    errorBanner.textContent = `${t('lcd_error_prefix')} ${formatAge(ageMs)}`;
     errorBanner.classList.add('show');
     return;
   }
@@ -110,24 +110,24 @@ function renderLCD(reading) {
   errorBanner.classList.remove('show');
   digits.textContent = reading.temperature.toFixed(1);
   digits.className = 'lcd-digits' + (reading.alarm ? ' warn' : '');
-  chipState.textContent = reading.alarm ? '⚠ تنبيه' : 'طبيعي';
+  chipState.textContent = reading.alarm ? t('lcd_alarm') : t('lcd_normal');
   chipHumidity.textContent = reading.humidity != null ? `RH ${reading.humidity}%` : 'RH --%';
   time.textContent = fmtTime(reading.created_at);
 }
 
 function formatAge(ms) {
   const mins = Math.floor(ms / 60000);
-  if (mins < 1) return 'أقل من دقيقة';
-  if (mins === 1) return 'دقيقة واحدة';
-  if (mins < 60) return `${mins} دقيقة`;
+  if (mins < 1) return t('age_less_min');
+  if (mins === 1) return t('age_one_min');
+  if (mins < 60) return `${mins} ${t('age_mins')}`;
   const hours = Math.floor(mins / 60);
-  return `${hours} ساعة`;
+  return `${hours} ${t('age_hours')}`;
 }
 
 function renderTable(rows) {
   const tbody = $('readings-tbody');
   if (rows.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="5" class="empty-row">بانتظار أول قراءة من الجهاز…</td></tr>';
+    tbody.innerHTML = `<tr><td colspan="5" class="empty-row">${t('table_empty')}</td></tr>`;
     return;
   }
   const recent = [...rows].reverse().slice(0, 25);
@@ -137,7 +137,7 @@ function renderTable(rows) {
       <td>${r.device_id}</td>
       <td>${r.temperature.toFixed(1)}</td>
       <td>${r.humidity != null ? r.humidity : '—'}</td>
-      <td><span class="badge ${r.alarm ? 'badge-warn' : 'badge-ok'}">${r.alarm ? 'تنبيه' : 'طبيعي'}</span></td>
+      <td><span class="badge ${r.alarm ? 'badge-warn' : 'badge-ok'}">${r.alarm ? t('badge_alarm') : t('badge_normal')}</span></td>
     </tr>
   `).join('');
 }
@@ -199,6 +199,12 @@ document.querySelectorAll('.range-btn').forEach((btn) => {
     refresh();
   });
 });
+
+// ------------- ربط مع نظام الترجمة (i18n.js) -------------
+// تُستدعى تلقائياً من setLang() عند تبديل اللغة، لإعادة رسم النصوص الديناميكية فوراً
+function onLanguageChange() {
+  refresh();
+}
 
 // ------------- init -------------
 initChart();
