@@ -164,9 +164,11 @@ function renderChart(rows) {
 function updateExportLinks() {
   const csvBtn = $('export-csv-btn');
   const xlsxBtn = $('export-xlsx-btn');
-  const q = state.device ? `?device_id=${encodeURIComponent(state.device)}` : '';
-  csvBtn.href = `/api/export/csv${q}`;
-  xlsxBtn.href = `/api/export/xlsx${q}`;
+  const params = new URLSearchParams();
+  if (state.device) params.set('device_id', state.device);
+  params.set('lang', getLang());
+  csvBtn.href = `/api/export/csv?${params.toString()}`;
+  xlsxBtn.href = `/api/export/xlsx?${params.toString()}`;
 }
 
 async function refresh() {

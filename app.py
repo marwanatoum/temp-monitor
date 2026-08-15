@@ -204,25 +204,51 @@ def _fetch_export_rows(device_id):
     return rows
 
 
-EXPORT_HEADERS = ["الجهاز", "الحرارة °C", "الرطوبة %", "الحالة", "التاريخ والوقت"]
+EXPORT_TRANSLATIONS = {
+    "ar": {
+        "headers": ["الجهاز", "الحرارة °C", "الرطوبة %", "الحالة", "التاريخ والوقت"],
+        "alarm": "تنبيه",
+        "normal": "طبيعي",
+        "sheet_title": "القراءات",
+    },
+    "fr": {
+        "headers": ["Appareil", "Temp. °C", "Humidité %", "État", "Date et heure"],
+        "alarm": "Alarme",
+        "normal": "Normal",
+        "sheet_title": "Lectures",
+    },
+    "en": {
+        "headers": ["Device", "Temp °C", "Humidity %", "Status", "Date & Time"],
+        "alarm": "Alarm",
+        "normal": "Normal",
+        "sheet_title": "Readings",
+    },
+}
+
+
+def get_export_lang():
+    lang = request.args.get("lang", "ar")
+    return lang if lang in EXPORT_TRANSLATIONS else "ar"
 
 
 @app.route("/api/export/csv", methods=["GET"])
 @login_required
 def export_csv():
     device_id = request.args.get("device_id")
+    lang = get_export_lang()
+    tr = EXPORT_TRANSLATIONS[lang]
     rows = _fetch_export_rows(device_id)
 
     output = io.StringIO()
-    output.write("\ufeff")  # BOM حتى يفتح ملف CSV بشكل صحيح مع الحروف العربية في Excel
+    output.write("\ufeff")  # BOM حتى يفتح ملف CSV بشكل صحيح مع الحروف غير اللاتينية في Excel
     writer = csv.writer(output)
-    writer.writerow(EXPORT_HEADERS)
+    writer.writerow(tr["headers"])
     for r in rows:
         writer.writerow([
             r["device_id"],
             r["temperature"],
             r["humidity"] if r["humidity"] is not None else "",
-            "تنبيه" if r["alarm"] else "طبيعي",
+            tr["alarm"] if r["alarm"] else tr["normal"],
             r["created_at"],
         ])
 
@@ -238,17 +264,19 @@ def export_csv():
 @login_required
 def export_xlsx():
     device_id = request.args.get("device_id")
+    lang = get_export_lang()
+    tr = EXPORT_TRANSLATIONS[lang]
     rows = _fetch_export_rows(device_id)
 
     wb = Workbook()
     ws = wb.active
-    ws.title = "القراءات"
-    ws.sheet_view.rightToLeft = True  # اتجاه الورقة من اليمين لليسار
+    ws.title = tr["sheet_title"]
+    ws.sheet_view.rightToLeft = (lang == "ar")  # اتجاه الورقة حسب اللغة
 
     header_fill = PatternFill(start_color="1F5A3B", end_color="1F5A3B", fill_type="solid")
     header_font = Font(color="FFFFFF", bold=True)
 
-    ws.append(EXPORT_HEADERS)
+    ws.append(tr["headers"])
     for cell in ws[1]:
         cell.fill = header_fill
         cell.font = header_font
@@ -259,7 +287,7 @@ def export_xlsx():
             r["device_id"],
             r["temperature"],
             r["humidity"] if r["humidity"] is not None else None,
-            "تنبيه" if r["alarm"] else "طبيعي",
+            tr["alarm"] if r["alarm"] else tr["normal"],
             r["created_at"],
         ])
 
