@@ -46,45 +46,29 @@
 
 <main class="layout">
 
-  <section class="panel-row">
-    <div class="lcd-card" id="lcd-card">
-      <div class="lcd-card-head">
-        <label for="device-select" data-i18n="device_label">الجهاز</label>
-        <select id="device-select"></select>
-      </div>
+  <section class="type-tabs" id="type-tabs"></section>
 
-      <div class="export-buttons">
-        <a href="#" id="export-csv-btn" class="export-btn" data-i18n="export_csv">CSV ⬇</a>
-        <a href="#" id="export-xlsx-btn" class="export-btn" data-i18n="export_xlsx">Excel ⬇</a>
-      </div>
+  <section class="device-grid" id="device-grid"></section>
 
-      <div class="lcd-screen" id="lcd-screen">
-        <div class="lcd-top">
-          <span class="lcd-tag">°C</span>
-          <span class="lcd-tag" id="lcd-time">--:--:--</span>
-        </div>
-        <div class="lcd-digits" id="lcd-digits">--.-</div>
-        <div class="lcd-bottom">
-          <span class="lcd-chip" id="lcd-chip-state" data-i18n="lcd_no_data">لا بيانات</span>
-          <span class="lcd-chip" id="lcd-chip-humidity">RH --%</span>
-        </div>
-        <div class="lcd-error" id="lcd-error"></div>
-      </div>
-
-      <div class="lcd-legend">
-        <div class="legend-item"><span class="dot dot-ok"></span> <span data-i18n="legend_ok">طبيعي</span></div>
-        <div class="legend-item"><span class="dot dot-warn"></span> <span data-i18n="legend_warn">تنبيه</span></div>
-        <div class="legend-item"><span class="dot dot-off"></span> <span data-i18n="legend_off">غير متصل</span></div>
-      </div>
-    </div>
-
+  <section class="detail-row">
     <div class="info-card">
-      <h2 data-i18n="info_last_update">آخر تحديث</h2>
-      <p class="info-line" id="last-update">—</p>
-      <h2 data-i18n="info_reading_count">عدد القراءات المعروضة</h2>
-      <p class="info-line" id="reading-count">0</p>
-      <h2 data-i18n="info_min_max">المدى</h2>
-      <p class="info-line" id="min-max">—</p>
+      <div class="info-card-head">
+        <h2 id="selected-device-title" data-i18n="select_device_hint">اختر جهازاً لعرض السجل والرسم البياني</h2>
+        <div class="export-buttons">
+          <a href="#" id="export-csv-btn" class="export-btn" data-i18n="export_csv">CSV ⬇</a>
+          <a href="#" id="export-xlsx-btn" class="export-btn" data-i18n="export_xlsx">Excel ⬇</a>
+        </div>
+      </div>
+      <div class="info-stats">
+        <div>
+          <h2 data-i18n="info_last_update">آخر تحديث</h2>
+          <p class="info-line" id="last-update">—</p>
+        </div>
+        <div>
+          <h2 data-i18n="info_reading_count">عدد القراءات المعروضة</h2>
+          <p class="info-line" id="reading-count">0</p>
+        </div>
+      </div>
     </div>
   </section>
 
@@ -92,6 +76,7 @@
     <div class="chart-head">
       <h2 data-i18n="chart_title">تطور الحرارة</h2>
       <div class="chart-controls">
+        <select id="metric-select"></select>
         <button class="range-btn active" data-limit="60" data-i18n="range_60">آخر 60</button>
         <button class="range-btn" data-limit="200" data-i18n="range_200">آخر 200</button>
         <button class="range-btn" data-limit="1000" data-i18n="range_all">الكل</button>
@@ -105,11 +90,8 @@
     <div class="table-wrap">
       <table id="readings-table">
         <thead>
-          <tr>
+          <tr id="readings-thead-row">
             <th data-i18n="th_time">الوقت</th>
-            <th data-i18n="th_device">الجهاز</th>
-            <th data-i18n="th_temp">الحرارة °C</th>
-            <th data-i18n="th_humidity">الرطوبة %</th>
             <th data-i18n="th_status">الحالة</th>
           </tr>
         </thead>
@@ -127,9 +109,9 @@ Content-Type: application/json
 
 {
   "api_key": "changeme-esp32-key",
-  "device_id": "dixell-chambre-1",
-  "temperature": 4.2,
-  "humidity": 55.0,
+  "device_id": "vfd-pump-1",
+  "device_type": "vfd",
+  "metrics": { "frequency_hz": 45.2, "current_a": 3.1, "power_kw": 2.4 },
   "alarm": false
 }</code></pre>
   </section>

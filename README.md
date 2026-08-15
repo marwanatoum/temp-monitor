@@ -3,6 +3,37 @@
 سيرفر Flask بسيط يستقبل قراءات الحرارة من جهاز ESP32 (متصل بمنظم Dixell عبر RS485)
 عبر HTTP، يخزنها في SQLite، ويعرضها في لوحة تحكم على الويب بتصميم يحاكي شاشة LCD صناعية.
 
+## أنواع الأجهزة المدعومة
+
+المشروع يدعم الآن عدة أنواع من الأجهزة الصناعية، كل نوع بقيمه (metrics) الخاصة:
+
+| النوع (device_type) | القيم (metrics) |
+|---|---|
+| `temperature` | `temperature` (°C), `humidity` (%) |
+| `regulator` | `temperature` (°C), `setpoint` (°C) |
+| `vfd` | `frequency_hz` (Hz), `current_a` (A), `power_kw` (kW) |
+| `valve` | `position_pct` (%) |
+| `pressure` | `pressure_bar` (bar) |
+| `flow` | `flow_m3h` (m³/h) |
+
+اللوحة تعرض تبويباً منفصلاً لكل نوع، وبطاقة لكل جهاز تعرض جميع قيمه.
+
+### مثال إرسال قراءة VFD
+
+```bash
+curl -X POST http://localhost:5000/api/reading \
+  -H "Content-Type: application/json" \
+  -d '{
+        "api_key": "changeme-esp32-key",
+        "device_id": "vfd-pump-1",
+        "device_type": "vfd",
+        "metrics": {"frequency_hz": 45.2, "current_a": 3.1, "power_kw": 2.4},
+        "alarm": false
+      }'
+```
+
+> ⚠️ `device_type` مطلوب فقط أول مرة (أو عند تغييره). القراءات اللاحقة لنفس `device_id` لا تحتاجه.
+
 ## التشغيل محلياً
 
 ```bash
