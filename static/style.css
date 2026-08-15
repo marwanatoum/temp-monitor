@@ -115,6 +115,29 @@ h2{
 }
 .lcd-digits.warn{ color:var(--amber); text-shadow:0 0 18px rgba(255,176,32,0.55), 0 0 3px rgba(255,176,32,0.9); }
 .lcd-digits.off{ color:#3A4A42; text-shadow:none; }
+.lcd-digits.error{
+  color:var(--red);
+  text-shadow:0 0 18px rgba(255,93,93,0.55), 0 0 3px rgba(255,93,93,0.9);
+  animation:blink-error 1.2s ease-in-out infinite;
+}
+@keyframes blink-error{
+  0%, 100%{ opacity:1; }
+  50%{ opacity:0.45; }
+}
+
+.lcd-error{
+  display:none;
+  margin-top:12px;
+  padding:8px 12px;
+  border-radius:6px;
+  background:rgba(255,93,93,0.1);
+  border:1px solid var(--red);
+  color:var(--red);
+  font-family:'JetBrains Mono', monospace;
+  font-size:0.75rem;
+  text-align:center;
+}
+.lcd-error.show{ display:block; }
 
 .lcd-bottom{ display:flex; justify-content:space-between; }
 .lcd-chip{

@@ -4,6 +4,10 @@ const state = {
   chart: null,
 };
 
+// إذا لم تصل قراءة جديدة خلال هذه المدة، نعتبر الجهاز منقطعاً
+// (الجهاز يرسل كل دقيقة تقريباً، فنضع هامش أمان = 3 أضعاف)
+const STALE_THRESHOLD_MS = 3 * 60 * 1000;
+
 const $ = (id) => document.getElementById(id);
 
 function fmtTime(iso) {
@@ -77,6 +81,7 @@ function renderLCD(reading) {
   const chipState = $('lcd-chip-state');
   const chipHumidity = $('lcd-chip-humidity');
   const time = $('lcd-time');
+  const errorBanner = $('lcd-error');
 
   if (!reading) {
     digits.textContent = '--.-';
@@ -84,14 +89,39 @@ function renderLCD(reading) {
     chipState.textContent = 'لا بيانات';
     chipHumidity.textContent = 'RH --%';
     time.textContent = '--:--:--';
+    errorBanner.classList.remove('show');
     return;
   }
 
+  const ageMs = Date.now() - new Date(reading.created_at).getTime();
+  const isStale = ageMs > STALE_THRESHOLD_MS;
+
+  if (isStale) {
+    digits.textContent = '##';
+    digits.className = 'lcd-digits error';
+    chipState.textContent = '❌ منقطع';
+    chipHumidity.textContent = reading.humidity != null ? `RH ${reading.humidity}%` : 'RH --%';
+    time.textContent = fmtTime(reading.created_at);
+    errorBanner.textContent = `⚠ انقطع الاتصال بالجهاز — آخر قراءة منذ ${formatAge(ageMs)}`;
+    errorBanner.classList.add('show');
+    return;
+  }
+
+  errorBanner.classList.remove('show');
   digits.textContent = reading.temperature.toFixed(1);
   digits.className = 'lcd-digits' + (reading.alarm ? ' warn' : '');
   chipState.textContent = reading.alarm ? '⚠ تنبيه' : 'طبيعي';
   chipHumidity.textContent = reading.humidity != null ? `RH ${reading.humidity}%` : 'RH --%';
   time.textContent = fmtTime(reading.created_at);
+}
+
+function formatAge(ms) {
+  const mins = Math.floor(ms / 60000);
+  if (mins < 1) return 'أقل من دقيقة';
+  if (mins === 1) return 'دقيقة واحدة';
+  if (mins < 60) return `${mins} دقيقة`;
+  const hours = Math.floor(mins / 60);
+  return `${hours} ساعة`;
 }
 
 function renderTable(rows) {
@@ -133,78 +163,24 @@ function renderChart(rows) {
 
 async function refresh() {
   try {
-    console.log("🔄 Refresh...");
-
     if (!state.device) {
-      console.log("📡 Fetching devices...");
-
       const d = await fetchDevices();
-
-      console.log("📡 Devices:", d);
-
-      if (!d) {
-        setConnStatus(false);
-        renderLCD(null);
-        return;
-      }
+      if (!d) { setConnStatus(false); renderLCD(null); return; }
     }
-
-    const url =
-      `/api/readings?device_id=${encodeURIComponent(state.device)}&limit=${state.limit}`;
-
-    console.log("📡 Request:", url);
-
-    const res = await fetch(url);
-
-    console.log("📡 HTTP:", res.status);
-    console.log("📡 URL:", res.url);
-
-    if (!res.ok) {
-      const text = await res.text();
-      console.error("❌ Server response:", text);
-      throw new Error(`HTTP ${res.status}`);
-    }
-
+    const res = await fetch(`/api/readings?device_id=${encodeURIComponent(state.device)}&limit=${state.limit}`);
+    if (!res.ok) throw new Error('bad response');
     const rows = await res.json();
+    const lastReading = rows.length ? rows[rows.length - 1] : null;
+    const isStale = lastReading
+      ? (Date.now() - new Date(lastReading.created_at).getTime()) > STALE_THRESHOLD_MS
+      : true;
 
-    console.log("✅ Readings:", rows);
-
-    async function checkDeviceStatus() {
-    if (!state.device) return;
-
-    try {
-        const res = await fetch(
-            `/api/device-status/${encodeURIComponent(state.device)}`
-        );
-
-        if (!res.ok) {
-            throw new Error(`HTTP ${res.status}`);
-        }
-
-        const status = await res.json();
-
-        console.log("📡 Device status:", status);
-
-        setConnStatus(status.online);
-
-    } catch (e) {
-        console.error("❌ Status error:", e);
-        setConnStatus(false);
-    }
-}
-
-    renderLCD(
-      rows.length ? rows[rows.length - 1] : null
-    );
-
+    setConnStatus(!isStale);
+    renderLCD(lastReading);
     renderTable(rows);
     renderStats(rows);
     renderChart(rows);
-
   } catch (e) {
-
-    console.error("❌ Dashboard error:", e);
-
     setConnStatus(false);
   }
 }
