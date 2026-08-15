@@ -11,14 +11,18 @@ Temp Monitor — سيرفر مراقبة الحرارة عن بعد
 """
 
 import os
+import io
+import csv
 import sqlite3
 from datetime import datetime, timezone
-from flask import Flask, request, jsonify, render_template, g, redirect, url_for, flash
+from flask import Flask, request, jsonify, render_template, g, redirect, url_for, flash, Response
 from flask_login import (
     LoginManager, UserMixin, login_user, logout_user,
     login_required, current_user,
 )
 from werkzeug.security import generate_password_hash, check_password_hash
+from openpyxl import Workbook
+from openpyxl.styles import Font, PatternFill, Alignment
 
 APP_DB = os.path.join(os.path.dirname(__file__), "readings.db")
 # مفتاح بسيط للتحقق من هوية الجهاز المُرسل (غيّره قبل النشر الحقيقي)
@@ -178,6 +182,102 @@ def list_devices():
     db = get_db()
     rows = db.execute("SELECT DISTINCT device_id FROM readings").fetchall()
     return jsonify([r["device_id"] for r in rows])
+
+
+# ---------------------------------------------------------------------------
+# تصدير البيانات (CSV / Excel)
+# ---------------------------------------------------------------------------
+def _fetch_export_rows(device_id):
+    """يرجع كل قراءات جهاز معين (أو الكل) مرتبة من الأقدم للأحدث، للتصدير."""
+    db = get_db()
+    if device_id:
+        rows = db.execute(
+            "SELECT device_id, temperature, humidity, alarm, created_at "
+            "FROM readings WHERE device_id = ? ORDER BY id ASC",
+            (device_id,),
+        ).fetchall()
+    else:
+        rows = db.execute(
+            "SELECT device_id, temperature, humidity, alarm, created_at "
+            "FROM readings ORDER BY id ASC"
+        ).fetchall()
+    return rows
+
+
+EXPORT_HEADERS = ["الجهاز", "الحرارة °C", "الرطوبة %", "الحالة", "التاريخ والوقت"]
+
+
+@app.route("/api/export/csv", methods=["GET"])
+@login_required
+def export_csv():
+    device_id = request.args.get("device_id")
+    rows = _fetch_export_rows(device_id)
+
+    output = io.StringIO()
+    output.write("\ufeff")  # BOM حتى يفتح ملف CSV بشكل صحيح مع الحروف العربية في Excel
+    writer = csv.writer(output)
+    writer.writerow(EXPORT_HEADERS)
+    for r in rows:
+        writer.writerow([
+            r["device_id"],
+            r["temperature"],
+            r["humidity"] if r["humidity"] is not None else "",
+            "تنبيه" if r["alarm"] else "طبيعي",
+            r["created_at"],
+        ])
+
+    filename = f"readings_{device_id or 'all'}_{datetime.now().strftime('%Y%m%d_%H%M')}.csv"
+    return Response(
+        output.getvalue(),
+        mimetype="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
+@app.route("/api/export/xlsx", methods=["GET"])
+@login_required
+def export_xlsx():
+    device_id = request.args.get("device_id")
+    rows = _fetch_export_rows(device_id)
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "القراءات"
+    ws.sheet_view.rightToLeft = True  # اتجاه الورقة من اليمين لليسار
+
+    header_fill = PatternFill(start_color="1F5A3B", end_color="1F5A3B", fill_type="solid")
+    header_font = Font(color="FFFFFF", bold=True)
+
+    ws.append(EXPORT_HEADERS)
+    for cell in ws[1]:
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = Alignment(horizontal="center")
+
+    for r in rows:
+        ws.append([
+            r["device_id"],
+            r["temperature"],
+            r["humidity"] if r["humidity"] is not None else None,
+            "تنبيه" if r["alarm"] else "طبيعي",
+            r["created_at"],
+        ])
+
+    # عرض تلقائي تقريبي للأعمدة
+    widths = [18, 12, 12, 10, 26]
+    for i, w in enumerate(widths, start=1):
+        ws.column_dimensions[ws.cell(row=1, column=i).column_letter].width = w
+
+    buffer = io.BytesIO()
+    wb.save(buffer)
+    buffer.seek(0)
+
+    filename = f"readings_{device_id or 'all'}_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx"
+    return Response(
+        buffer.getvalue(),
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
 
 
 # ---------------------------------------------------------------------------
