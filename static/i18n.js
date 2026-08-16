@@ -37,6 +37,7 @@ const TRANSLATIONS = {
     range_to: 'إلى تاريخ',
     range_apply: 'تطبيق',
     range_reset: 'إعادة ضبط',
+    range_all_short: 'الكل',
 
     info_last_update: 'آخر تحديث',
     info_reading_count: 'عدد القراءات',
@@ -75,6 +76,10 @@ const TRANSLATIONS = {
     device_added_success: 'تمت إضافة الجهاز بنجاح',
     device_id_required: 'معرّف الجهاز مطلوب',
     device_exists_error: 'هذا الجهاز موجود بالفعل',
+    edit_device_title: 'تعديل الجهاز',
+    edit_btn: 'تعديل',
+    cancel_edit_btn: 'إلغاء',
+    device_updated_success: 'تم تحديث الجهاز بنجاح',
 
     // الخريطة
     map_title: 'خريطة الأجهزة',
@@ -115,6 +120,7 @@ const TRANSLATIONS = {
     range_to: 'Au',
     range_apply: 'Appliquer',
     range_reset: 'Réinitialiser',
+    range_all_short: 'Tout',
 
     info_last_update: 'Dernière mise à jour',
     info_reading_count: 'Nombre de lectures',
@@ -152,6 +158,10 @@ const TRANSLATIONS = {
     device_added_success: 'Appareil ajouté avec succès',
     device_id_required: 'L\u2019identifiant est requis',
     device_exists_error: 'Cet appareil existe déjà',
+    edit_device_title: 'Modifier l\u2019appareil',
+    edit_btn: 'Modifier',
+    cancel_edit_btn: 'Annuler',
+    device_updated_success: 'Appareil mis à jour avec succès',
 
     map_title: 'Carte des appareils',
     map_no_coords: 'Aucun appareil avec des coordonnées enregistrées',
@@ -191,6 +201,7 @@ const TRANSLATIONS = {
     range_to: 'To',
     range_apply: 'Apply',
     range_reset: 'Reset',
+    range_all_short: 'All',
 
     info_last_update: 'Last update',
     info_reading_count: 'Readings shown',
@@ -228,6 +239,10 @@ const TRANSLATIONS = {
     device_added_success: 'Device added successfully',
     device_id_required: 'Device ID is required',
     device_exists_error: 'This device already exists',
+    edit_device_title: 'Edit device',
+    edit_btn: 'Edit',
+    cancel_edit_btn: 'Cancel',
+    device_updated_success: 'Device updated successfully',
 
     map_title: 'Device Map',
     map_no_coords: 'No device has saved coordinates yet',

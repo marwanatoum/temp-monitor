@@ -48,7 +48,7 @@
 <main class="layout">
 
   <section class="form-card">
-    <h2 data-i18n="add_device_title">إضافة جهاز جديد</h2>
+    <h2 id="form-title" data-i18n="add_device_title">إضافة جهاز جديد</h2>
 
     <div id="form-error" class="lcd-error show" style="display:none; margin-bottom:14px;"></div>
     <div id="form-success" class="lcd-error show" style="display:none; margin-bottom:14px; border-color:var(--green); background:rgba(63,224,122,0.1); color:var(--green);"></div>
@@ -90,8 +90,9 @@
     <div class="tags-list" id="tags-list"></div>
     <button class="btn btn-ghost" id="add-tag-btn" type="button" data-i18n="add_tag_btn">➕ إضافة tag</button>
 
-    <div style="margin-top:20px;">
+    <div style="margin-top:20px; display:flex; gap:10px;">
       <button class="btn btn-primary" id="save-device-btn" data-i18n="save_device_btn">حفظ الجهاز</button>
+      <button class="btn btn-ghost" id="cancel-edit-btn" data-i18n="cancel_edit_btn" style="display:none;">إلغاء</button>
     </div>
   </section>
 

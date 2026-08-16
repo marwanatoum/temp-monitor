@@ -66,7 +66,7 @@ function onDeviceChange(deviceId) {
   state.selectedMetric = 'temperature';
   $('device-detail').style.display = 'block';
   updateApiExample();
-  loadAndRenderDetail();
+  applyPreset('24h');
 }
 
 function updateApiExample() {
@@ -100,17 +100,43 @@ function getRangeParams() {
   return params;
 }
 
-$('range-apply-btn').addEventListener('click', () => {
-  state.dateFrom = $('range-from').value || null;
-  state.dateTo = $('range-to').value || null;
-  loadAndRenderDetail();
+function toLocalInputValue(date) {
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function applyPreset(preset) {
+  document.querySelectorAll('.range-preset-btn').forEach((b) => b.classList.toggle('active', b.dataset.preset === preset));
+
+  const now = new Date();
+  let from = null;
+
+  if (preset === '24h') {
+    from = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+  } else if (preset === '7d') {
+    from = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  } else if (preset === '30d') {
+    from = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+  } else if (preset === 'all') {
+    from = null;
+  }
+
+  $('range-from').value = from ? toLocalInputValue(from) : '';
+  $('range-to').value = '';
+  state.dateFrom = from ? toLocalInputValue(from) : null;
+  state.dateTo = null;
+
+  if (state.selectedDevice) loadAndRenderDetail();
+}
+
+document.querySelectorAll('.range-preset-btn').forEach((btn) => {
+  btn.addEventListener('click', () => applyPreset(btn.dataset.preset));
 });
 
-$('range-reset-btn').addEventListener('click', () => {
-  $('range-from').value = '';
-  $('range-to').value = '';
-  state.dateFrom = null;
-  state.dateTo = null;
+$('range-apply-btn').addEventListener('click', () => {
+  document.querySelectorAll('.range-preset-btn').forEach((b) => b.classList.remove('active'));
+  state.dateFrom = $('range-from').value || null;
+  state.dateTo = $('range-to').value || null;
   loadAndRenderDetail();
 });
 

@@ -281,6 +281,63 @@ def create_device():
     return jsonify({"status": "ok"}), 201
 
 
+@app.route("/api/devices/<device_id>", methods=["GET"])
+@login_required
+def get_device(device_id):
+    db = get_db()
+    row = db.execute("SELECT * FROM devices WHERE device_id = ?", (device_id,)).fetchone()
+    if not row:
+        return jsonify({"error": "الجهاز غير موجود"}), 404
+    return jsonify(device_to_dict(row, get_device_tags(db, device_id)))
+
+
+@app.route("/api/devices/<device_id>", methods=["PUT"])
+@login_required
+def update_device(device_id):
+    db = get_db()
+    existing = db.execute("SELECT 1 FROM devices WHERE device_id = ?", (device_id,)).fetchone()
+    if not existing:
+        return jsonify({"error": "الجهاز غير موجود"}), 404
+
+    data = request.get_json(silent=True) or {}
+
+    def _to_float(v):
+        try:
+            return float(v) if v not in (None, "") else None
+        except (TypeError, ValueError):
+            return None
+
+    db.execute(
+        """
+        UPDATE devices SET description = ?, lat = ?, lng = ?, temp_min = ?, temp_max = ?
+        WHERE device_id = ?
+        """,
+        (
+            data.get("description") or None,
+            _to_float(data.get("lat")),
+            _to_float(data.get("lng")),
+            _to_float(data.get("temp_min")),
+            _to_float(data.get("temp_max")),
+            device_id,
+        ),
+    )
+
+    # استبدال tags بالكامل بالقائمة الجديدة
+    db.execute("DELETE FROM device_tags WHERE device_id = ?", (device_id,))
+    tags = data.get("tags") or []
+    for i, tag in enumerate(tags):
+        name = (tag.get("tag_name") or "").strip()
+        if not name:
+            continue
+        db.execute(
+            "INSERT INTO device_tags (device_id, tag_name, unit, sort_order) VALUES (?, ?, ?, ?)",
+            (device_id, name, (tag.get("unit") or "").strip() or None, i),
+        )
+
+    db.commit()
+    return jsonify({"status": "ok"})
+
+
 @app.route("/api/devices/<device_id>", methods=["DELETE"])
 @login_required
 def delete_device(device_id):

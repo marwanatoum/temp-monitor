@@ -165,6 +165,9 @@ body{
   color:var(--text); border-radius:6px; padding:8px 10px;
   font-family:'JetBrains Mono',monospace; font-size:0.78rem;
 }
+.range-presets{ display:flex; gap:6px; }
+.range-preset-btn{ border-radius:20px; }
+.range-preset-btn.active{ background:var(--green-dim); border-color:var(--green); color:var(--green); }
 
 /* ---------------- Map page ---------------- */
 #map{ height:calc(100vh - 170px); min-height:420px; border-radius:var(--radius); border:1px solid var(--border); }
@@ -341,7 +344,7 @@ h2{
 
 /* ---------------- Chart ---------------- */
 .chart-head{ display:flex; justify-content:space-between; align-items:center; }
-.chart-controls{ display:flex; gap:6px; }
+.chart-controls{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
 .range-btn{
   background:transparent; border:1px solid var(--border);
   color:var(--text-muted); font-family:'JetBrains Mono',monospace;

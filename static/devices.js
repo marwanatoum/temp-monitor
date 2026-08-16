@@ -1,6 +1,7 @@
 const $ = (id) => document.getElementById(id);
 
 let tagRowCount = 0;
+let editingDeviceId = null; // null = وضع إضافة، غير ذلك = وضع تعديل
 
 function addTagRow(name = '', unit = '') {
   const list = $('tags-list');
@@ -34,6 +35,50 @@ function showFormMessage(el, message) {
   el.style.display = 'block';
 }
 
+function clearForm() {
+  ['f-device-id', 'f-description', 'f-lat', 'f-lng', 'f-temp-min', 'f-temp-max'].forEach((id) => {
+    $(id).value = '';
+  });
+  $('tags-list').innerHTML = '';
+}
+
+function enterAddMode() {
+  editingDeviceId = null;
+  clearForm();
+  $('f-device-id').disabled = false;
+  $('form-title').textContent = t('add_device_title');
+  $('save-device-btn').textContent = t('save_device_btn');
+  $('cancel-edit-btn').style.display = 'none';
+  $('form-error').style.display = 'none';
+  $('form-success').style.display = 'none';
+}
+
+async function enterEditMode(deviceId) {
+  const res = await fetch(`/api/devices/${encodeURIComponent(deviceId)}`);
+  if (!res.ok) return;
+  const dev = await res.json();
+
+  editingDeviceId = deviceId;
+  $('f-device-id').value = dev.device_id;
+  $('f-device-id').disabled = true; // device_id ثابت أثناء التعديل
+  $('f-description').value = dev.description || '';
+  $('f-lat').value = dev.lat != null ? dev.lat : '';
+  $('f-lng').value = dev.lng != null ? dev.lng : '';
+  $('f-temp-min').value = dev.temp_min != null ? dev.temp_min : '';
+  $('f-temp-max').value = dev.temp_max != null ? dev.temp_max : '';
+
+  $('tags-list').innerHTML = '';
+  (dev.tags || []).forEach((tg) => addTagRow(tg.tag_name, tg.unit || ''));
+
+  $('form-title').textContent = t('edit_device_title');
+  $('save-device-btn').textContent = t('save_device_btn');
+  $('cancel-edit-btn').style.display = 'inline-block';
+  $('form-error').style.display = 'none';
+  $('form-success').style.display = 'none';
+
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
 async function saveDevice() {
   const device_id = $('f-device-id').value.trim();
   if (!device_id) {
@@ -52,8 +97,11 @@ async function saveDevice() {
   };
 
   try {
-    const res = await fetch('/api/devices', {
-      method: 'POST',
+    const url = editingDeviceId ? `/api/devices/${encodeURIComponent(editingDeviceId)}` : '/api/devices';
+    const method = editingDeviceId ? 'PUT' : 'POST';
+
+    const res = await fetch(url, {
+      method,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
@@ -64,24 +112,18 @@ async function saveDevice() {
       return;
     }
 
-    showFormMessage($('form-success'), t('device_added_success'));
-    clearForm();
+    showFormMessage($('form-success'), editingDeviceId ? t('device_updated_success') : t('device_added_success'));
+    enterAddMode();
     loadDevices();
   } catch (e) {
     showFormMessage($('form-error'), String(e));
   }
 }
 
-function clearForm() {
-  ['f-device-id', 'f-description', 'f-lat', 'f-lng', 'f-temp-min', 'f-temp-max'].forEach((id) => {
-    $(id).value = '';
-  });
-  $('tags-list').innerHTML = '';
-}
-
 async function deleteDevice(deviceId) {
   if (!confirm(t('confirm_delete'))) return;
   await fetch(`/api/devices/${encodeURIComponent(deviceId)}`, { method: 'DELETE' });
+  if (editingDeviceId === deviceId) enterAddMode();
   loadDevices();
 }
 
@@ -111,7 +153,8 @@ async function loadDevices() {
           ${tagsHtml ? `<div class="device-row-tags" style="margin-top:6px;">${tagsHtml}</div>` : ''}
         </div>
         <div class="device-row-meta">${metaParts.join(' &nbsp;·&nbsp; ')}</div>
-        <button class="btn btn-danger btn-sm" onclick="deleteDevice('${dev.device_id}')" data-i18n="delete_btn">${t('delete_btn')}</button>
+        <button class="btn btn-ghost btn-sm" onclick="enterEditMode('${dev.device_id}')">${t('edit_btn')}</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteDevice('${dev.device_id}')">${t('delete_btn')}</button>
       </div>
     `;
   }).join('');
@@ -119,9 +162,11 @@ async function loadDevices() {
 
 function onLanguageChange() {
   loadDevices();
+  $('form-title').textContent = editingDeviceId ? t('edit_device_title') : t('add_device_title');
 }
 
 $('add-tag-btn').addEventListener('click', () => addTagRow());
 $('save-device-btn').addEventListener('click', saveDevice);
+$('cancel-edit-btn').addEventListener('click', enterAddMode);
 
 loadDevices();
