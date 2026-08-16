@@ -3,7 +3,17 @@ const $ = (id) => document.getElementById(id);
 let tagRowCount = 0;
 let editingDeviceId = null; // null = وضع إضافة، غير ذلك = وضع تعديل
 
-function addTagRow(name = '', unit = '') {
+function renderTagsHeader() {
+  $('tags-list-header').innerHTML = `
+    <span style="flex:2;">${t('tag_name_placeholder')}</span>
+    <span style="flex:1;">${t('tag_unit_placeholder')}</span>
+    <span style="flex:1;">${t('tag_min_placeholder')}</span>
+    <span style="flex:1;">${t('tag_max_placeholder')}</span>
+    <span style="width:32px;"></span>
+  `;
+}
+
+function addTagRow(name = '', unit = '', minVal = '', maxVal = '') {
   const list = $('tags-list');
   const rowId = `tag-row-${tagRowCount++}`;
   const row = document.createElement('div');
@@ -12,6 +22,8 @@ function addTagRow(name = '', unit = '') {
   row.innerHTML = `
     <input type="text" class="tag-name" placeholder="${t('tag_name_placeholder')}" value="${name}">
     <input type="text" class="tag-unit" placeholder="${t('tag_unit_placeholder')}" value="${unit}">
+    <input type="number" step="any" class="tag-min" placeholder="${t('tag_min_placeholder')}" value="${minVal}">
+    <input type="number" step="any" class="tag-max" placeholder="${t('tag_max_placeholder')}" value="${maxVal}">
     <button type="button" class="tag-remove-btn" onclick="document.getElementById('${rowId}').remove()">✕</button>
   `;
   list.appendChild(row);
@@ -23,7 +35,9 @@ function collectTags() {
   rows.forEach((row) => {
     const name = row.querySelector('.tag-name').value.trim();
     const unit = row.querySelector('.tag-unit').value.trim();
-    if (name) tags.push({ tag_name: name, unit });
+    const min_val = row.querySelector('.tag-min').value;
+    const max_val = row.querySelector('.tag-max').value;
+    if (name) tags.push({ tag_name: name, unit, min_val, max_val });
   });
   return tags;
 }
@@ -36,9 +50,7 @@ function showFormMessage(el, message) {
 }
 
 function clearForm() {
-  ['f-device-id', 'f-description', 'f-lat', 'f-lng', 'f-temp-min', 'f-temp-max'].forEach((id) => {
-    $(id).value = '';
-  });
+  ['f-device-id', 'f-description', 'f-lat', 'f-lng'].forEach((id) => { $(id).value = ''; });
   $('tags-list').innerHTML = '';
 }
 
@@ -64,11 +76,13 @@ async function enterEditMode(deviceId) {
   $('f-description').value = dev.description || '';
   $('f-lat').value = dev.lat != null ? dev.lat : '';
   $('f-lng').value = dev.lng != null ? dev.lng : '';
-  $('f-temp-min').value = dev.temp_min != null ? dev.temp_min : '';
-  $('f-temp-max').value = dev.temp_max != null ? dev.temp_max : '';
 
   $('tags-list').innerHTML = '';
-  (dev.tags || []).forEach((tg) => addTagRow(tg.tag_name, tg.unit || ''));
+  (dev.tags || []).forEach((tg) => addTagRow(
+    tg.tag_name, tg.unit || '',
+    tg.min_val != null ? tg.min_val : '',
+    tg.max_val != null ? tg.max_val : ''
+  ));
 
   $('form-title').textContent = t('edit_device_title');
   $('save-device-btn').textContent = t('save_device_btn');
@@ -91,8 +105,6 @@ async function saveDevice() {
     description: $('f-description').value.trim(),
     lat: $('f-lat').value,
     lng: $('f-lng').value,
-    temp_min: $('f-temp-min').value,
-    temp_max: $('f-temp-max').value,
     tags: collectTags(),
   };
 
@@ -127,6 +139,13 @@ async function deleteDevice(deviceId) {
   loadDevices();
 }
 
+function formatMinMax(tg) {
+  if (tg.min_val == null && tg.max_val == null) return '';
+  const min = tg.min_val != null ? tg.min_val : '—';
+  const max = tg.max_val != null ? tg.max_val : '—';
+  return ` [${min} / ${max}]`;
+}
+
 async function loadDevices() {
   const res = await fetch('/api/devices');
   const devices = await res.json();
@@ -138,12 +157,11 @@ async function loadDevices() {
   }
 
   container.innerHTML = devices.map((dev) => {
-    const tagsHtml = dev.tags.map((tg) => `<span class="device-row-tag">${tg.tag_name}${tg.unit ? ' (' + tg.unit + ')' : ''}</span>`).join('');
+    const tagsHtml = dev.tags.map((tg) =>
+      `<span class="device-row-tag">${tg.tag_name}${tg.unit ? ' (' + tg.unit + ')' : ''}${formatMinMax(tg)}</span>`
+    ).join('');
     const metaParts = [];
     if (dev.lat != null && dev.lng != null) metaParts.push(`📍 ${dev.lat}, ${dev.lng}`);
-    if (dev.temp_min != null || dev.temp_max != null) {
-      metaParts.push(`🌡️ ${dev.temp_min != null ? dev.temp_min : '—'}° / ${dev.temp_max != null ? dev.temp_max : '—'}°`);
-    }
 
     return `
       <div class="device-row">
@@ -161,6 +179,7 @@ async function loadDevices() {
 }
 
 function onLanguageChange() {
+  renderTagsHeader();
   loadDevices();
   $('form-title').textContent = editingDeviceId ? t('edit_device_title') : t('add_device_title');
 }
@@ -169,4 +188,5 @@ $('add-tag-btn').addEventListener('click', () => addTagRow());
 $('save-device-btn').addEventListener('click', saveDevice);
 $('cancel-edit-btn').addEventListener('click', enterAddMode);
 
+renderTagsHeader();
 loadDevices();

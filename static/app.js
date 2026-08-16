@@ -140,7 +140,7 @@ $('range-apply-btn').addEventListener('click', () => {
   loadAndRenderDetail();
 });
 
-// ------------- الشاشة (LCD) للحرارة + chips للـ tags -------------
+// ------------- الشاشة (LCD) للحرارة + chips لباقي الـ tags -------------
 function renderLCDAndTags(reading, device) {
   const digits = $('lcd-digits');
   const chipState = $('lcd-chip-state');
@@ -150,10 +150,12 @@ function renderLCDAndTags(reading, device) {
   const tagsContainer = $('tags-chips');
   const lcdScreen = $('lcd-screen');
 
-  const hasTemperature = device.temp_min != null || device.temp_max != null || (reading && reading.temperature != null);
-  lcdScreen.style.display = 'block';
+  // نعرض شاشة LCD الكبيرة فقط إذا الجهاز عندو tag اسمه "temperature" (أو القراءة فيها قيمة temperature)
+  const hasTemperatureTag = (device.tags || []).some((tg) => tg.tag_name === 'temperature')
+    || (reading && reading.values && reading.values.temperature != null);
 
   if (!reading) {
+    lcdScreen.style.display = hasTemperatureTag ? 'block' : 'none';
     digits.textContent = '--.-';
     digits.className = 'lcd-digits off';
     chipState.textContent = t('lcd_no_data');
@@ -164,32 +166,33 @@ function renderLCDAndTags(reading, device) {
     return;
   }
 
+  const values = reading.values || {};
   const stale = isStaleReading(reading);
   const ageMs = Date.now() - new Date(reading.created_at).getTime();
 
-  if (stale) {
-    digits.textContent = '##';
-    digits.className = 'lcd-digits error';
-    chipState.textContent = t('lcd_offline');
-    chipHumidity.textContent = reading.humidity != null ? `RH ${reading.humidity}%` : 'RH --%';
-    time.textContent = fmtTime(reading.created_at);
-    errorBanner.textContent = `${t('lcd_error_prefix')} ${formatAge(ageMs)}`;
-    errorBanner.classList.add('show');
-  } else {
-    errorBanner.classList.remove('show');
-    digits.textContent = reading.temperature != null ? reading.temperature.toFixed(1) : '--.-';
-    digits.className = 'lcd-digits' + (reading.alarm ? ' warn' : '');
-    chipState.textContent = reading.alarm ? t('lcd_alarm') : t('lcd_normal');
-    chipHumidity.textContent = reading.humidity != null ? `RH ${reading.humidity}%` : 'RH --%';
-    time.textContent = fmtTime(reading.created_at);
+  lcdScreen.style.display = hasTemperatureTag ? 'block' : 'none';
+
+  if (hasTemperatureTag) {
+    if (stale) {
+      digits.textContent = '##';
+      digits.className = 'lcd-digits error';
+      chipState.textContent = t('lcd_offline');
+      chipHumidity.textContent = values.humidity != null ? `RH ${values.humidity}%` : 'RH --%';
+      time.textContent = fmtTime(reading.created_at);
+      errorBanner.textContent = `${t('lcd_error_prefix')} ${formatAge(ageMs)}`;
+      errorBanner.classList.add('show');
+    } else {
+      errorBanner.classList.remove('show');
+      digits.textContent = values.temperature != null ? Number(values.temperature).toFixed(1) : '--.-';
+      digits.className = 'lcd-digits' + (reading.alarm ? ' warn' : '');
+      chipState.textContent = reading.alarm ? t('lcd_alarm') : t('lcd_normal');
+      chipHumidity.textContent = values.humidity != null ? `RH ${values.humidity}%` : 'RH --%';
+      time.textContent = fmtTime(reading.created_at);
+    }
   }
 
-  // إخفاء الشاشة كلياً إذا الجهاز ما عندوش حرارة أصلاً (فقط tags)
-  lcdScreen.style.display = (reading.temperature != null || device.temp_min != null || device.temp_max != null) ? 'block' : 'none';
-
-  // عرض قيم الـ tags كـ chips
-  const values = reading.values || {};
-  const tagEntries = Object.entries(values);
+  // عرض باقي القيم (ما عدا temperature/humidity المعروضين أصلاً في الشاشة) كـ chips
+  const tagEntries = Object.entries(values).filter(([k]) => !(hasTemperatureTag && (k === 'temperature' || k === 'humidity')));
   tagsContainer.innerHTML = tagEntries.length === 0 ? '' : tagEntries.map(([k, v]) => {
     const tagDef = (device.tags || []).find((tg) => tg.tag_name === k);
     const unit = tagDef ? (tagDef.unit || '') : '';
@@ -224,21 +227,20 @@ function initChart() {
 }
 
 function metricValue(reading, metric) {
-  if (metric === 'temperature') return reading.temperature;
-  if (metric === 'humidity') return reading.humidity;
   return reading.values ? reading.values[metric] : undefined;
 }
 
 function populateMetricSelect(device) {
   const select = $('metric-select');
-  const options = [];
-  options.push({ value: 'temperature', label: t('th_temp') });
-  options.push({ value: 'humidity', label: t('th_humidity') });
-  (device.tags || []).forEach((tg) => {
-    options.push({ value: tg.tag_name, label: tg.unit ? `${tg.tag_name} (${tg.unit})` : tg.tag_name });
-  });
+  const options = (device.tags || []).map((tg) => ({
+    value: tg.tag_name,
+    label: tg.unit ? `${tg.tag_name} (${tg.unit})` : tg.tag_name,
+  }));
 
   select.innerHTML = options.map((o) => `<option value="${o.value}">${o.label}</option>`).join('');
+  if (!options.some((o) => o.value === state.selectedMetric)) {
+    state.selectedMetric = options.length ? options[0].value : null;
+  }
   select.value = state.selectedMetric;
 }
 
@@ -248,6 +250,12 @@ $('metric-select').addEventListener('change', (e) => {
 });
 
 function renderChart(rows) {
+  if (!state.selectedMetric) {
+    state.chart.data.labels = [];
+    state.chart.data.datasets[0].data = [];
+    state.chart.update();
+    return;
+  }
   const filtered = rows.filter((r) => metricValue(r, state.selectedMetric) != null);
   state.chart.data.labels = filtered.map((r) => fmtTime(r.created_at));
   state.chart.data.datasets[0].data = filtered.map((r) => metricValue(r, state.selectedMetric));
@@ -260,11 +268,11 @@ function renderTable(rows, device) {
   const tbody = $('readings-tbody');
   const tagNames = (device.tags || []).map((tg) => tg.tag_name);
 
-  theadRow.innerHTML = `<th>${t('th_time')}</th><th>${t('th_temp')}</th><th>${t('th_humidity')}</th>` +
+  theadRow.innerHTML = `<th>${t('th_time')}</th>` +
     tagNames.map((n) => `<th>${n}</th>`).join('') +
     `<th>${t('th_status')}</th>`;
 
-  const colCount = 4 + tagNames.length;
+  const colCount = 2 + tagNames.length;
 
   if (rows.length === 0) {
     tbody.innerHTML = `<tr><td colspan="${colCount}" class="empty-row">${t('table_empty')}</td></tr>`;
@@ -275,8 +283,6 @@ function renderTable(rows, device) {
   tbody.innerHTML = recent.map((r) => `
     <tr>
       <td>${fmtTime(r.created_at)}</td>
-      <td>${r.temperature != null ? r.temperature.toFixed(1) : '—'}</td>
-      <td>${r.humidity != null ? r.humidity : '—'}</td>
       ${tagNames.map((n) => `<td>${(r.values && r.values[n] != null) ? r.values[n] : '—'}</td>`).join('')}
       <td><span class="badge ${r.alarm ? 'badge-warn' : 'badge-ok'}">${r.alarm ? t('badge_alarm') : t('badge_normal')}</span></td>
     </tr>

@@ -103,10 +103,16 @@ def init_db():
             device_id TEXT NOT NULL REFERENCES devices(device_id) ON DELETE CASCADE,
             tag_name TEXT NOT NULL,
             unit TEXT,
+            min_val REAL,
+            max_val REAL,
             sort_order INTEGER DEFAULT 0
         )
         """
     )
+    existing_tag_cols = [r[1] for r in conn.execute("PRAGMA table_info(device_tags)").fetchall()]
+    for col, col_type in [("min_val", "REAL"), ("max_val", "REAL")]:
+        if col not in existing_tag_cols:
+            conn.execute(f"ALTER TABLE device_tags ADD COLUMN {col} {col_type}")
     conn.execute(
         """
         CREATE TABLE IF NOT EXISTS readings (
@@ -161,10 +167,13 @@ def device_to_dict(row, tags):
 
 def get_device_tags(db, device_id):
     rows = db.execute(
-        "SELECT tag_name, unit FROM device_tags WHERE device_id = ? ORDER BY sort_order ASC, id ASC",
+        "SELECT tag_name, unit, min_val, max_val FROM device_tags WHERE device_id = ? ORDER BY sort_order ASC, id ASC",
         (device_id,),
     ).fetchall()
-    return [{"tag_name": r["tag_name"], "unit": r["unit"]} for r in rows]
+    return [
+        {"tag_name": r["tag_name"], "unit": r["unit"], "min_val": r["min_val"], "max_val": r["max_val"]}
+        for r in rows
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -253,16 +262,14 @@ def create_device():
 
     db.execute(
         """
-        INSERT INTO devices (device_id, description, lat, lng, temp_min, temp_max, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO devices (device_id, description, lat, lng, created_at)
+        VALUES (?, ?, ?, ?, ?)
         """,
         (
             device_id,
             data.get("description") or None,
             _to_float(data.get("lat")),
             _to_float(data.get("lng")),
-            _to_float(data.get("temp_min")),
-            _to_float(data.get("temp_max")),
             datetime.now(timezone.utc).isoformat(),
         ),
     )
@@ -273,8 +280,12 @@ def create_device():
         if not name:
             continue
         db.execute(
-            "INSERT INTO device_tags (device_id, tag_name, unit, sort_order) VALUES (?, ?, ?, ?)",
-            (device_id, name, (tag.get("unit") or "").strip() or None, i),
+            "INSERT INTO device_tags (device_id, tag_name, unit, min_val, max_val, sort_order) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (
+                device_id, name, (tag.get("unit") or "").strip() or None,
+                _to_float(tag.get("min_val")), _to_float(tag.get("max_val")), i,
+            ),
         )
 
     db.commit()
@@ -308,16 +319,11 @@ def update_device(device_id):
             return None
 
     db.execute(
-        """
-        UPDATE devices SET description = ?, lat = ?, lng = ?, temp_min = ?, temp_max = ?
-        WHERE device_id = ?
-        """,
+        "UPDATE devices SET description = ?, lat = ?, lng = ? WHERE device_id = ?",
         (
             data.get("description") or None,
             _to_float(data.get("lat")),
             _to_float(data.get("lng")),
-            _to_float(data.get("temp_min")),
-            _to_float(data.get("temp_max")),
             device_id,
         ),
     )
@@ -330,8 +336,12 @@ def update_device(device_id):
         if not name:
             continue
         db.execute(
-            "INSERT INTO device_tags (device_id, tag_name, unit, sort_order) VALUES (?, ?, ?, ?)",
-            (device_id, name, (tag.get("unit") or "").strip() or None, i),
+            "INSERT INTO device_tags (device_id, tag_name, unit, min_val, max_val, sort_order) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (
+                device_id, name, (tag.get("unit") or "").strip() or None,
+                _to_float(tag.get("min_val")), _to_float(tag.get("max_val")), i,
+            ),
         )
 
     db.commit()
@@ -355,25 +365,29 @@ def delete_device(device_id):
 @app.route("/api/reading", methods=["POST"])
 def add_reading():
     """
-    يستقبل قراءة جديدة من الجهاز.
+    يستقبل قراءة جديدة من الجهاز. كل القيم تُرسل داخل "values"، بأسماء
+    مطابقة لـ tags المعرّفة للجهاز في صفحة "إدارة الأجهزة".
 
-    مثال (جهاز حرارة عادي):
+    مثال (جهاز حرارة/رطوبة، مثل AM2302B):
     {
         "api_key": "changeme-esp32-key",
         "device_id": "am2302b-1",
-        "temperature": 4.2,
-        "humidity": 55.0
+        "values": {"temperature": 4.2, "humidity": 55.0}
     }
 
-    مثال (جهاز بـ tags مخصصة، مثل VFD):
+    مثال (جهاز VFD):
     {
         "api_key": "changeme-esp32-key",
         "device_id": "vfd-pump-1",
-        "values": {"التردد": 45.2, "التيار": 3.1, "القدرة": 2.4}
+        "values": {"التردد": 45.2, "التيار": 3.1}
     }
 
+    توافق قديم: يمكن أيضاً إرسال temperature/humidity كحقول مباشرة
+    (بدون "values")، وسيتم دمجها تلقائياً.
+
     ملاحظة: الجهاز خاصو يكون مُضافاً مسبقاً من صفحة "إدارة الأجهزة"،
-    وإلا السيرفر يرفض القراءة (404).
+    وإلا السيرفر يرفض القراءة (404). التنبيه (alarm) يُحسب تلقائياً
+    إذا أي قيمة خرجت عن Min/Max الخاص بـ tag ها من نفس الجهاز.
     """
     data = request.get_json(silent=True) or {}
 
@@ -389,25 +403,38 @@ def add_reading():
     if not device:
         return jsonify({"error": "الجهاز غير مسجّل. أضفه أولاً من صفحة إدارة الأجهزة"}), 404
 
-    temperature = data.get("temperature")
-    humidity = data.get("humidity")
-    values = data.get("values")
+    values = dict(data.get("values") or {})
 
-    if temperature is None and not values:
-        return jsonify({"error": "يجب إرسال temperature أو values على الأقل"}), 400
+    # توافق مع الصيغة القديمة (temperature/humidity كحقول مباشرة)
+    if data.get("temperature") is not None:
+        values.setdefault("temperature", data["temperature"])
+    if data.get("humidity") is not None:
+        values.setdefault("humidity", data["humidity"])
 
-    if temperature is not None:
+    if not values:
+        return jsonify({"error": "يجب إرسال values على الأقل (أو temperature/humidity)"}), 400
+
+    # تحويل كل القيم لأرقام حيثما أمكن
+    clean_values = {}
+    for k, v in values.items():
         try:
-            temperature = float(temperature)
+            clean_values[k] = float(v)
         except (TypeError, ValueError):
-            return jsonify({"error": "temperature يجب أن تكون رقماً"}), 400
+            clean_values[k] = v  # يُترك كما هو إذا لم يكن رقماً
 
-    # حساب التنبيه: إما مرسل صراحة من الجهاز، أو تلقائياً من عتبات الحرارة المسجّلة
+    # حساب التنبيه: مرسل صراحة، أو تلقائياً إذا أي قيمة خرجت عن Min/Max الخاص بـ tag ها
     alarm = bool(data.get("alarm", False))
-    if temperature is not None and device["temp_min"] is not None and temperature < device["temp_min"]:
-        alarm = True
-    if temperature is not None and device["temp_max"] is not None and temperature > device["temp_max"]:
-        alarm = True
+    tag_defs = {t["tag_name"]: t for t in get_device_tags(db, device_id)}
+    for k, v in clean_values.items():
+        if not isinstance(v, (int, float)):
+            continue
+        tag_def = tag_defs.get(k)
+        if not tag_def:
+            continue
+        if tag_def["min_val"] is not None and v < tag_def["min_val"]:
+            alarm = True
+        if tag_def["max_val"] is not None and v > tag_def["max_val"]:
+            alarm = True
 
     created_at = datetime.now(timezone.utc).isoformat()
 
@@ -418,9 +445,9 @@ def add_reading():
         """,
         (
             device_id,
-            temperature,
-            humidity,
-            json.dumps(values) if values else None,
+            clean_values.get("temperature"),
+            clean_values.get("humidity"),
+            json.dumps(clean_values),
             1 if alarm else 0,
             created_at,
         ),
@@ -521,15 +548,10 @@ def get_export_lang():
 
 
 def build_export_table(rows, tr, tag_names):
-    headers = [tr["temperature"], tr["humidity"]] + tag_names + [tr["status"], tr["datetime"]]
+    headers = tag_names + [tr["status"], tr["datetime"]]
     table_rows = []
     for r in rows:
-        row = [
-            r["temperature"] if r["temperature"] is not None else "",
-            r["humidity"] if r["humidity"] is not None else "",
-        ]
-        for tag in tag_names:
-            row.append(r["values"].get(tag, ""))
+        row = [r["values"].get(tag, "") for tag in tag_names]
         row.append(tr["alarm"] if r["alarm"] else tr["normal"])
         row.append(r["created_at"])
         table_rows.append(row)

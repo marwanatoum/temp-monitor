@@ -115,6 +115,11 @@ body{
 .form-field input:focus, .form-field textarea:focus{ outline:none; border-color:var(--green); }
 
 .tags-list{ display:flex; flex-direction:column; gap:8px; margin-bottom:10px; }
+.tags-list-header{
+  display:flex; gap:8px; font-family:'JetBrains Mono',monospace; font-size:0.68rem;
+  color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:2px;
+}
+.tags-list-header span{ }
 .tag-row{ display:flex; gap:8px; align-items:center; }
 .tag-row input{
   background:var(--bg); border:1px solid var(--border); color:var(--text);
@@ -122,6 +127,8 @@ body{
 }
 .tag-row .tag-name{ flex:2; }
 .tag-row .tag-unit{ flex:1; }
+.tag-row .tag-min{ flex:1; }
+.tag-row .tag-max{ flex:1; }
 .tag-remove-btn{
   background:transparent; border:1px solid var(--border); color:var(--red);
   border-radius:6px; width:32px; height:32px; cursor:pointer; font-size:0.9rem; flex-shrink:0;
