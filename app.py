@@ -85,6 +85,17 @@ def init_db():
         )
         """
     )
+
+    existing_device_cols = [r[1] for r in conn.execute("PRAGMA table_info(devices)").fetchall()]
+    for col, col_type in [
+        ("description", "TEXT"),
+        ("lat", "REAL"),
+        ("lng", "REAL"),
+        ("temp_min", "REAL"),
+        ("temp_max", "REAL"),
+    ]:
+        if col not in existing_device_cols:
+            conn.execute(f"ALTER TABLE devices ADD COLUMN {col} {col_type}")
     conn.execute(
         """
         CREATE TABLE IF NOT EXISTS device_tags (
@@ -109,6 +120,17 @@ def init_db():
         )
         """
     )
+
+    # ترقية تلقائية: إذا كان جدول readings موجوداً من نسخة قديمة وناقصه أعمدة، نضيفها
+    existing_cols = [r[1] for r in conn.execute("PRAGMA table_info(readings)").fetchall()]
+    for col, col_type in [
+        ("temperature", "REAL"),
+        ("humidity", "REAL"),
+        ("values_json", "TEXT"),
+        ("alarm", "INTEGER DEFAULT 0"),
+    ]:
+        if col not in existing_cols:
+            conn.execute(f"ALTER TABLE readings ADD COLUMN {col} {col_type}")
     conn.execute(
         """
         CREATE TABLE IF NOT EXISTS users (
