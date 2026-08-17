@@ -6,7 +6,7 @@ const state = {
   devices: [],
   selectedDevice: null,
   selectedDeviceObj: null,
-  selectedMetric: 'temperature', // 'temperature' | 'humidity' | tag_name
+  selectedMetric: null, // اسم tag، يُحدَّد تلقائياً من أول tag للجهاز
   chart: null,
   dateFrom: null,
   dateTo: null,
@@ -63,7 +63,7 @@ async function loadDeviceList() {
 function onDeviceChange(deviceId) {
   state.selectedDevice = deviceId;
   state.selectedDeviceObj = state.devices.find((d) => d.device_id === deviceId) || null;
-  state.selectedMetric = 'temperature';
+  state.selectedMetric = null;
   $('device-detail').style.display = 'block';
   updateApiExample();
   applyPreset('24h');
@@ -140,70 +140,70 @@ $('range-apply-btn').addEventListener('click', () => {
   loadAndRenderDetail();
 });
 
-// ------------- الشاشة (LCD) للحرارة + chips لباقي الـ tags -------------
+// ------------- الشاشة (LCD) العامة (حسب state.selectedMetric) + chips لكل القيم -------------
 function renderLCDAndTags(reading, device) {
   const digits = $('lcd-digits');
+  const unitEl = $('lcd-unit');
   const chipState = $('lcd-chip-state');
-  const chipHumidity = $('lcd-chip-humidity');
   const time = $('lcd-time');
   const errorBanner = $('lcd-error');
   const tagsContainer = $('tags-chips');
-  const lcdScreen = $('lcd-screen');
 
-  // نعرض شاشة LCD الكبيرة فقط إذا الجهاز عندو tag اسمه "temperature" (أو القراءة فيها قيمة temperature)
-  const hasTemperatureTag = (device.tags || []).some((tg) => tg.tag_name === 'temperature')
-    || (reading && reading.values && reading.values.temperature != null);
+  const tagDef = (device.tags || []).find((tg) => tg.tag_name === state.selectedMetric);
+  const unit = tagDef ? (tagDef.unit || '') : '';
+  unitEl.textContent = unit;
 
-  if (!reading) {
-    lcdScreen.style.display = hasTemperatureTag ? 'block' : 'none';
+  if (!reading || !state.selectedMetric) {
     digits.textContent = '--.-';
     digits.className = 'lcd-digits off';
     chipState.textContent = t('lcd_no_data');
-    chipHumidity.textContent = 'RH --%';
     time.textContent = '--:--:--';
     errorBanner.classList.remove('show');
-    tagsContainer.innerHTML = '';
-    return;
-  }
+  } else {
+    const values = reading.values || {};
+    const stale = isStaleReading(reading);
+    const ageMs = Date.now() - new Date(reading.created_at).getTime();
+    const value = values[state.selectedMetric];
 
-  const values = reading.values || {};
-  const stale = isStaleReading(reading);
-  const ageMs = Date.now() - new Date(reading.created_at).getTime();
-
-  lcdScreen.style.display = hasTemperatureTag ? 'block' : 'none';
-
-  if (hasTemperatureTag) {
     if (stale) {
       digits.textContent = '##';
       digits.className = 'lcd-digits error';
       chipState.textContent = t('lcd_offline');
-      chipHumidity.textContent = values.humidity != null ? `RH ${values.humidity}%` : 'RH --%';
       time.textContent = fmtTime(reading.created_at);
       errorBanner.textContent = `${t('lcd_error_prefix')} ${formatAge(ageMs)}`;
       errorBanner.classList.add('show');
     } else {
       errorBanner.classList.remove('show');
-      digits.textContent = values.temperature != null ? Number(values.temperature).toFixed(1) : '--.-';
+      digits.textContent = (value != null) ? (typeof value === 'number' ? value.toFixed(1) : value) : '--.-';
       digits.className = 'lcd-digits' + (reading.alarm ? ' warn' : '');
       chipState.textContent = reading.alarm ? t('lcd_alarm') : t('lcd_normal');
-      chipHumidity.textContent = values.humidity != null ? `RH ${values.humidity}%` : 'RH --%';
       time.textContent = fmtTime(reading.created_at);
     }
   }
 
-  // عرض باقي القيم (ما عدا temperature/humidity المعروضين أصلاً في الشاشة) كـ chips
-  const tagEntries = Object.entries(values).filter(([k]) => !(hasTemperatureTag && (k === 'temperature' || k === 'humidity')));
+  // عرض كل القيم الحالية للجهاز كـ chips (مرجع مستقل عن الشاشة)
+  const values = (reading && reading.values) || {};
+  const tagEntries = Object.entries(values);
   tagsContainer.innerHTML = tagEntries.length === 0 ? '' : tagEntries.map(([k, v]) => {
-    const tagDef = (device.tags || []).find((tg) => tg.tag_name === k);
-    const unit = tagDef ? (tagDef.unit || '') : '';
+    const def = (device.tags || []).find((tg) => tg.tag_name === k);
+    const u = def ? (def.unit || '') : '';
+    const isActive = k === state.selectedMetric;
     return `
-      <div class="metric-chip">
+      <div class="metric-chip${isActive ? ' active' : ''}" data-metric="${k}">
         <span class="metric-value">${typeof v === 'number' ? v.toFixed(1) : v}</span>
-        <span class="metric-unit">${unit}</span>
+        <span class="metric-unit">${u}</span>
         <span class="metric-label">${k}</span>
       </div>
     `;
   }).join('');
+
+  tagsContainer.querySelectorAll('.metric-chip').forEach((chip) => {
+    chip.addEventListener('click', () => {
+      state.selectedMetric = chip.dataset.metric;
+      $('metric-select').value = state.selectedMetric;
+      loadAndRenderDetail();
+    });
+  });
 }
 
 // ------------- الرسم البياني -------------

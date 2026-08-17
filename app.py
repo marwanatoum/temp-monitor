@@ -27,6 +27,45 @@ DEVICE_API_KEY = os.environ.get("DEVICE_API_KEY", "changeme-esp32-key")
 DEFAULT_USERNAME = os.environ.get("DEFAULT_USERNAME", "admin")
 DEFAULT_PASSWORD = os.environ.get("DEFAULT_PASSWORD", "admin123")
 
+# إذا كان DATABASE_URL معرّفاً (مثلاً رابط Supabase/PostgreSQL)، نستعمل قاعدة بيانات
+# دائمة خارجية بدل SQLite المحلي. هذا يحل مشكلة ضياع البيانات عند إعادة تشغيل
+# السيرفر (Render Spin Down) لأن SQLite محلي يُمسح مع كل container جديد.
+DATABASE_URL = os.environ.get("DATABASE_URL")
+IS_PG = bool(DATABASE_URL)
+
+if IS_PG:
+    import psycopg2
+    import psycopg2.extras
+
+
+class PGCursorResult:
+    """يحاكي واجهة sqlite3 (fetchone/fetchall) فوق psycopg2 cursor."""
+    def __init__(self, cursor):
+        self._cursor = cursor
+
+    def fetchall(self):
+        return self._cursor.fetchall()
+
+    def fetchone(self):
+        return self._cursor.fetchone()
+
+
+class PGConnWrapper:
+    """يحاكي واجهة sqlite3.Connection.execute() فوق psycopg2، بما فيها تحويل '?' إلى '%s'."""
+    def __init__(self, conn):
+        self._conn = conn
+
+    def execute(self, query, params=()):
+        cur = self._conn.cursor()
+        cur.execute(query.replace("?", "%s"), tuple(params))
+        return PGCursorResult(cur)
+
+    def commit(self):
+        self._conn.commit()
+
+    def close(self):
+        self._conn.close()
+
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-change-me")
 
@@ -55,9 +94,13 @@ def load_user(user_id):
 # ---------------------------------------------------------------------------
 def get_db():
     if "db" not in g:
-        g.db = sqlite3.connect(APP_DB)
-        g.db.row_factory = sqlite3.Row
-        g.db.execute("PRAGMA foreign_keys = ON")
+        if IS_PG:
+            conn = psycopg2.connect(DATABASE_URL, cursor_factory=psycopg2.extras.RealDictCursor)
+            g.db = PGConnWrapper(conn)
+        else:
+            g.db = sqlite3.connect(APP_DB)
+            g.db.row_factory = sqlite3.Row
+            g.db.execute("PRAGMA foreign_keys = ON")
     return g.db
 
 
@@ -68,7 +111,7 @@ def close_db(exception=None):
         db.close()
 
 
-def init_db():
+def init_sqlite_db():
     conn = sqlite3.connect(APP_DB)
     conn.execute("PRAGMA foreign_keys = ON")
 
@@ -157,6 +200,83 @@ def init_db():
 
     conn.commit()
     conn.close()
+
+
+def init_pg_db():
+    """تهيئة قاعدة بيانات PostgreSQL (Supabase) — دائمة، لا تُمسح عند إعادة تشغيل السيرفر."""
+    conn = psycopg2.connect(DATABASE_URL)
+    cur = conn.cursor()
+
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS devices (
+            device_id TEXT PRIMARY KEY,
+            description TEXT,
+            lat DOUBLE PRECISION,
+            lng DOUBLE PRECISION,
+            created_at TEXT NOT NULL
+        )
+        """
+    )
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS device_tags (
+            id SERIAL PRIMARY KEY,
+            device_id TEXT NOT NULL REFERENCES devices(device_id) ON DELETE CASCADE,
+            tag_name TEXT NOT NULL,
+            unit TEXT,
+            min_val DOUBLE PRECISION,
+            max_val DOUBLE PRECISION,
+            sort_order INTEGER DEFAULT 0
+        )
+        """
+    )
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS readings (
+            id SERIAL PRIMARY KEY,
+            device_id TEXT NOT NULL,
+            temperature DOUBLE PRECISION,
+            humidity DOUBLE PRECISION,
+            values_json TEXT,
+            alarm INTEGER DEFAULT 0,
+            created_at TEXT NOT NULL
+        )
+        """
+    )
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS users (
+            id SERIAL PRIMARY KEY,
+            username TEXT UNIQUE NOT NULL,
+            password_hash TEXT NOT NULL
+        )
+        """
+    )
+    conn.commit()
+
+    cur.execute("SELECT COUNT(*) FROM users")
+    count = cur.fetchone()[0]
+    if count == 0:
+        cur.execute(
+            "INSERT INTO users (username, password_hash) VALUES (%s, %s)",
+            (DEFAULT_USERNAME, generate_password_hash(DEFAULT_PASSWORD)),
+        )
+        conn.commit()
+        print(f"[init] (PostgreSQL) تم إنشاء مستخدم افتراضي: {DEFAULT_USERNAME} / {DEFAULT_PASSWORD}")
+
+    cur.close()
+    conn.close()
+
+
+def init_db():
+    """نقطة الدخول الموحّدة: تختار SQLite محلياً أو PostgreSQL إذا DATABASE_URL معرّف."""
+    if IS_PG:
+        print("[init] استعمال قاعدة بيانات PostgreSQL (Supabase) — دائمة")
+        init_pg_db()
+    else:
+        print("[init] استعمال قاعدة بيانات SQLite محلية (readings.db)")
+        init_sqlite_db()
 
 
 def device_to_dict(row, tags):

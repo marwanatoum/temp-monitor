@@ -81,36 +81,46 @@
       <button class="btn btn-primary" id="range-apply-btn" data-i18n="range_apply">تطبيق</button>
     </div>
 
-    <section class="panel-row" style="display:grid; grid-template-columns:1.3fr 1fr; gap:18px; margin-bottom:22px;">
-      <div class="lcd-card" style="background:var(--bg-panel); border:1px solid var(--border); border-radius:var(--radius); padding:18px 20px;">
-        <div class="lcd-screen" id="lcd-screen">
-          <div class="lcd-top">
-            <span class="lcd-tag">°C</span>
-            <span class="lcd-tag" id="lcd-time">--:--:--</span>
-          </div>
-          <div class="lcd-digits" id="lcd-digits">--.-</div>
-          <div class="lcd-bottom">
-            <span class="lcd-chip" id="lcd-chip-state" data-i18n="lcd_no_data">لا بيانات</span>
-            <span class="lcd-chip" id="lcd-chip-humidity">RH --%</span>
-          </div>
-          <div class="lcd-error" id="lcd-error"></div>
-        </div>
-        <div class="device-metrics" id="tags-chips" style="margin-top:14px;"></div>
+    <section class="lcd-card" style="background:var(--bg-panel); border:1px solid var(--border); border-radius:var(--radius); padding:18px 20px; margin-bottom:18px;">
+      <div class="lcd-card-head" style="display:flex; justify-content:flex-end; margin-bottom:12px;">
+        <select id="metric-select"></select>
       </div>
+      <div class="lcd-screen" id="lcd-screen">
+        <div class="lcd-top">
+          <span class="lcd-tag" id="lcd-time">--:--:--</span>
+        </div>
+        <div class="lcd-digits-row">
+          <span class="lcd-digits" id="lcd-digits">--.-</span>
+          <span class="lcd-unit" id="lcd-unit"></span>
+        </div>
+        <div class="lcd-bottom">
+          <span class="lcd-chip" id="lcd-chip-state" data-i18n="lcd_no_data">لا بيانات</span>
+        </div>
+        <div class="lcd-error" id="lcd-error"></div>
+      </div>
+    </section>
 
+    <section class="info-row" style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:22px;">
       <div class="info-card">
         <h2 data-i18n="info_last_update">آخر تحديث</h2>
-        <p class="info-line" id="last-update" style="font-family:'JetBrains Mono',monospace; font-size:1rem; margin:0 0 16px;">—</p>
+        <p class="info-line" id="last-update" style="font-family:'JetBrains Mono',monospace; font-size:1rem; margin:0;">—</p>
+      </div>
+      <div class="info-card">
         <h2 data-i18n="info_reading_count">عدد القراءات</h2>
         <p class="info-line" id="reading-count" style="font-family:'JetBrains Mono',monospace; font-size:1rem; margin:0;">0</p>
       </div>
     </section>
 
+    <section class="table-card" style="margin-bottom:22px;">
+      <h2 data-i18n="tags_title" style="text-transform:none; letter-spacing:0; font-size:0.85rem;">القيم الحالية</h2>
+      <div class="device-metrics" id="tags-chips"></div>
+    </section>
+
+
     <section class="chart-card" style="margin-bottom:22px;">
       <div class="chart-head">
         <h2 data-i18n="chart_title">الرسم البياني</h2>
         <div class="chart-controls">
-          <select id="metric-select"></select>
           <div class="export-buttons">
             <a href="#" id="export-csv-btn" class="export-btn" data-i18n="export_csv">CSV ⬇</a>
             <a href="#" id="export-xlsx-btn" class="export-btn" data-i18n="export_xlsx">Excel ⬇</a>

@@ -71,6 +71,35 @@ python app.py
 
 أعمدة التصدير ديناميكية بالكامل حسب Tags الجهاز المختار.
 
+## قاعدة بيانات دائمة (Supabase) — حل مشكلة ضياع البيانات
+
+بشكل افتراضي، المشروع يستعمل SQLite محلي — سهل للتجربة، لكن على Render (الخطة المجانية)
+يُمسح عند كل إعادة تشغيل (Spin Down بعد 15 دقيقة سكون، أو نشر جديد).
+
+**الحل: قاعدة بيانات PostgreSQL خارجية دائمة عبر Supabase (مجاني):**
+
+1. من لوحة Supabase → مشروعك → **Project Settings → Database**
+2. انسخ **Direct Connection** string (وليس Pooler/Transaction)، شكلها:
+   ```
+   postgresql://postgres.xxxxxxxx:[YOUR-PASSWORD]@aws-x-xxxx.pooler.supabase.com:5432/postgres
+   ```
+   أو الصيغة المباشرة:
+   ```
+   postgresql://postgres:[YOUR-PASSWORD]@db.xxxxxxxx.supabase.co:5432/postgres
+   ```
+3. استبدل `[YOUR-PASSWORD]` بكلمة مرور قاعدة البيانات الفعلية (وليس المفتاح `sb_publishable_...` — ذاك لواجهة API، مختلف عن كلمة مرور Postgres)
+4. أضف هذا الرابط الكامل كمتغيّر بيئة `DATABASE_URL` في Render (Settings → Environment)
+5. أعد النشر — السيرفر غادي يكتشف `DATABASE_URL` تلقائياً ويستعمل PostgreSQL بدل SQLite، وتشوف فـ السجلات (Logs):
+   ```
+   [init] استعمال قاعدة بيانات PostgreSQL (Supabase) — دائمة
+   ```
+
+> ⚠️ ملاحظة أمان: لا تشارك رابط الاتصال الكامل (مع كلمة المرور الحقيقية) في أي مكان عام —
+> ضعه فقط كـ Environment Variable في Render.
+
+> ⚠️ ملاحظة Supabase المجاني: المشروع يتوقف مؤقتاً (pause) إذا بقا بدون استعمال 7 أيام،
+> لكن البيانات لا تُمسح — يكفي "إيقاظه" يدوياً من لوحة Supabase عند الحاجة.
+
 ## البنية
 
 ```
